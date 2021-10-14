@@ -4,3 +4,5 @@ export NAME='Test Lab'
 export BILLING='01382E-07CCE9-615E10'
 gcloud projects create evekhm-testlab --name="$NAME" --folder=$FOLDER
 gcloud beta billing projects link evekhm-testlab --billing-account=$BILLING
+
+echo 'This is a Git Sync test'

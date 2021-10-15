@@ -1,8 +1,20 @@
 #!/usr/bin/env bash
-export FOLDER=261046259366
-export NAME='Test Lab'
-export BILLING='01382E-07CCE9-615E10'
-gcloud projects create evekhm-testlab --name="$NAME" --folder=$FOLDER
-gcloud beta billing projects link evekhm-testlab --billing-account=$BILLING
 
-echo 'This is a Git Sync test'
+#gcloud projects create evekhm-testlab --name="$NAME" --folder=$FOLDER
+#gcloud beta billing projects link evekhm-testlab --billing-account=$BILLING
+#
+#gcloud compute instances create $MACHINE --machine-type n1-standard-2 --zone $ZONE
+
+gcloud projects create "$PROJECT_ID" --name="$PROJECT_NAME" --folder=$FOLDER
+gcloud beta billing projects link "$PROJECT_ID" --billing-account="$BILLING"
+
+gcloud compute instances create "$VM" --machine-type n1-standard-2
+
+gcloud compute instances describe "$VM"
+
+gcloud compute ssh "$VM"
+
+#gcloud components list
+
+https://source.cloud.google.com/evekhm-testlab/github_evekhm_gcp/+/main:bin/utils.sh
+

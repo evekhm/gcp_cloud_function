@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import http.client
 import json
+import os
 from datetime import datetime, timedelta
 import random
 
@@ -9,9 +10,8 @@ CLIENT_SECRET = "gMKbRit4PrKoJaOj"
 REDIRECT_URI = ""
 ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI0ZjRhNzAwYS04ZDU0LTQ5ZGYtYTg4OS0zOWVhOGQ1MWZmYjIiLCJhdWQiOiJodHRwczovL3NhbmRib3gtYXBpLmRleGNvbS5jb20iLCJzY29wZSI6WyJlZ3YiLCJjYWxpYnJhdGlvbiIsImRldmljZSIsImV2ZW50Iiwic3RhdGlzdGljcyIsIm9mZmxpbmVfYWNjZXNzIl0sImlzcyI6Imh0dHBzOi8vc2FuZGJveC1hcGkuZGV4Y29tLmNvbSIsImV4cCI6MTYzMzY1NjMwMCwiaWF0IjoxNjMzNjQ5MTAwLCJjbGllbnRfaWQiOiJ6Rlk0YXJNelFuNXJmMGhSYk5iZkRLUVpmZjkxNzVhRiJ9.YzqotqLPkVx39XGE9DMNabALXDeMn1gKxZ4QvtzxPxOC8LeJcTXG2a-Zq0owv3HpAYm-VYuDgL_4nBAxCrYfgxFrLl5taFnbevRoTg0tGeaF6fbnzjnSHc7CXVA2d4UT0DAnWaAIdAI1KbQlk2GR4x2Ys1wA4AYgFc5kzve77uwX0rZgi8cNJboF7Z740xST-I_EEXxknA_wzz1bdAL9e52dACx3XTOodrXTjJ5kvIi2TxJvS8tvHtZJUIkFstc-E9LzbgNr4F19GowRHN0JyV7cDJleH_RA6inqWJwTey6B4v4iXH-vGEyRf3iXdiP-BNkQ5ZbkO4eQn-xAGashTQ"
 REFRESH_TOKEN = "d43d263d403995be3af5227801833e40"
-
-PROJECT_ID = "covid-19-271622"
-TOPIC_ID = 'cgm-dexcom'
+USER_ID = 'User4'
+TOPIC_ID = 'dexcom-topic' #TODO
 API_MESSAGE = 'egvs'
 LATEST_DATE = "2021-10-02" #Available in dexcom SandBox
 numdays = 360
@@ -37,13 +37,59 @@ def get_latest_data(access_token):
     return
 
   #Extract Just One message
-  return result_data[-1]
+  message = result_data[-1]
 
-def monitor(request = None):
+  #Fix the data
+  message['systemTime'] = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+  message['displayTime'] = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+
+  return message
+
+
+def monitor_http(request):
+  request_json = request.get_json(silent=True)
+
+  user_id = request_json.get("user")
+  topic_id = request_json.get("topic")
+  message = request_json.get("message")
+  return monitor(topic_id, user_id, API_MESSAGE)
+
+
+def monitor_pubsub(event, context):
+  import base64
+  if 'data' in event:
+    data = base64.b64decode(event['data'])
+    print(f'Received message:{data}')
+
+  topic_id = TOPIC_ID
+  user_id = USER_ID
+  if 'attributes' in event:
+    attributes = event['attributes']
+    keys = ",".join([x for x in  attributes.keys])
+    print(f"Received message attributes: {keys}")
+    if 'topic' in attributes:
+        topic_id = attributes['topic']
+    if 'userId' in attributes:
+      user_id = attributes['userId']
+  return monitor(user_id, topic_id, API_MESSAGE)
+
+
+def monitor(user_id, topic_id, api_message):
+  project_id = os.getenv('GCP_PROJECT')
   info = token_refresh()
   access_token = info['access_token']
+  return send_data(project_id, topic_id, access_token, user_id, api_message)
+
+
+def send_data(project_id, topic_id, access_token, user_id, api_name):
   data = get_latest_data(access_token)
-  publish_message(PROJECT_ID, TOPIC_ID, data)
+  message = json.dumps(data)
+  message_json = json.dumps({'message': message,
+                             'userId': user_id,
+                             'type': api_name
+                             })
+
+  return publish_message(project_id, topic_id, message_json.encode('utf-8'))
 
 def get_random_date(end_date: str) -> datetime:
   date_list = [datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=x) for x in range(numdays)]
@@ -52,7 +98,7 @@ def get_random_date(end_date: str) -> datetime:
 
   return dt
 
-def publish_message(project_id: str, topic_id: str, data: bytes) -> None:
+def publish_message(project_id: str, topic_id: str, data: bytes):
   """Publishes multiple messages to a Pub/Sub topic."""
   # [START pubsub_quickstart_publisher]
   # [START pubsub_publish]
@@ -65,14 +111,16 @@ def publish_message(project_id: str, topic_id: str, data: bytes) -> None:
   topic_path = publisher.topic_path(project_id, topic_id)
 
   try:
-    message_json = json.dumps({'message': data},)
-    print(f"Publishing message {message_json}")
-    future = publisher.publish(topic_path, data=message_json.encode('utf-8'))
-    print(f"Result:", future.result())
-    print(f"Published messages to {topic_path}.")
+    print(f'Publishing {data} to {topic_path}')
+    future = publisher.publish(topic_path, data=data)
+    result = f"Published messages to {topic_path}. Result: " + future.result()
+    print(result)
+    return result
 
-  except Exception as er:
-    print("Could not publish a message: ", er)
+  except Exception as e:
+    print("Could not publish a message: ", e)
+    return e, 500
+
 
   # [END pubsub_quickstart_publisher]
   # [END pubsub_publish]
@@ -117,6 +165,7 @@ def token_refresh():
       'content-type': "application/x-www-form-urlencoded",
       'cache-control': "no-cache"
   }
+
   conn.request("POST", "/v2/oauth2/token", payload, headers)
   res = conn.getresponse()
   data = res.read()
@@ -136,3 +185,4 @@ def get_data_range(access_token):
   data_object = json.loads(res.read())
   print(json.dumps(data_object, indent=2))
 
+monitor(USER_ID, TOPIC_ID, API_MESSAGE)

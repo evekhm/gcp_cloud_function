@@ -1,0 +1,25 @@
+#! /bin/bash
+
+##################################################################################
+#                            UNSETTING Application Specific
+##################################################################################
+unset APPLICATION
+unset BIGQUERY_DATASET
+unset SOURCE_DIR
+unset SOURCE_ENTRY_POINT
+unset RUNTIME
+unset INTERVAL
+unset TOPIC_ID
+unset SUBSCRIPTION_ID
+unset PUBSUB_COMMAND_TOPIC
+unset SCHEDULER_JOB
+unset DATAFLOW_JOB
+unset BIGQUERY_TABLE
+##################################################################################
+#                            UNSETTING Project Specific
+##################################################################################
+unset ACCOUNT
+unset BILLING
+unset REGION
+unset ZONE
+unset CONFIG

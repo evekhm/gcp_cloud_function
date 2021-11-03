@@ -1,150 +1,18 @@
 #! /bin/bash
-
-green=`tput setaf 2`
-reset=`tput sgr0`
-
-
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-SOURCE_DIR="${DIR}/../py/gMonitor"
-PROJECT_ID=$1
 
-
-###############################################################################
-#                              SETTINGS                                       #
-###############################################################################
-ACCOUNT='admin@evekhm.altostrat.com'
-#ACCOUNT='evekhm@google.com'
-BILLING='016EA1-F95FE4-01826A'
-REGION='us-west1'
-ZONE='us-west1-a'
-APPLICATION='dexcom'
-BIGQUERY_DATASET='datacloud'
-if [ -z "$PROJECT_ID" ]; then
-  PROJECT_ID='demo-'$(date '+%Y%m%d-%H%M%S')   #Random Unique Project ID
+if [ "$#" -ne 1 ]; then
+  echo "Usage: ${BASH_SOURCE[0]} PROJECT_ID"
+  echo "Where PROJECT_ID is either existing one or a new unique name (only for Argolis environment)"
+else
+  PROJECT_ID=$1
 fi
+source "$DIR/SET"
 
+# Sets the project into config and updates settings
+./"$DIR"/init "$PROJECT_ID"   # Project ID  - either new or existing
 
-##############################################################################
-#    Create Demo Project with All permissions set and APIs Enabled           #
-#    Will create/update  'demo' config
-##############################################################################
-"${DIR}"/create_project -id="$PROJECT_ID" \
-  -config="demo" \
-  -zone="$ZONE" \
-  -region="$REGION" \
-  -billing="$BILLING" \
-  -account=$ACCOUNT
+# Runs flow on the active config
+./"$DIR"/run
 
-
-###################################### Derrivates #############################
-PROJECT_NUM=$(gcloud projects describe "$(gcloud config get-value project)" --format='get(projectNumber)')
-SERVICE_ACCOUNT_FUNCTION="$PROJECT_ID@appspot.gserviceaccount.com"
-SERVICE_ACCOUNT_DATAFLOW="$PROJECT_NUM-compute@developer.gserviceaccount.com"
-RUNTIME='python37'
-
-CS_BUCKET="gs://$PROJECT_ID-$APPLICATION"
-TOPIC_ID=$APPLICATION'-topic'
-SUBSCRIPTION_ID=$APPLICATION'-sub'
-PUBSUB_CLOUD_FUNCTION=$APPLICATION'-call'
-SCHEDULER_JOB=$APPLICATION'-job'
-DATAFLOW_JOB=$APPLICATION'_dataflow_job'
-BIGQUERY_TABLE=$APPLICATION
-###############################################################################
-
-
-#PROJECT_ID=$(gcloud config get-value core/project)
-#REGION=$(gcloud config get-value compute/region)
-#ZONE=$(gcloud config get-value compute/zone)
-
-echo "${green} 1. Creating Pub/Sub for Receiving Data from Glucose Monitoring Device...${reset}"
-gcloud pubsub topics create "$TOPIC_ID"
-gcloud pubsub subscriptions create $SUBSCRIPTION_ID --topic="$TOPIC_ID"
-
-echo "${green} 2. Creating Pub/Sub for Triggering Cloud Function for periodic data retrieval...${reset}"
-gcloud pubsub topics create "$PUBSUB_CLOUD_FUNCTION"
-
-sleep 5
-echo "${green} 3. Deploying Cloud Function to access DEXCOM API...${reset}"
-gcloud services enable cloudbuild.googleapis.com
-
-sleep 5
-gcloud functions deploy monitor_pubsub \
-    --trigger-topic ${PUBSUB_CLOUD_FUNCTION} \
-    --runtime $RUNTIME --source="${SOURCE_DIR}" \
-    --entry-point=monitor_pubsub \
-    --service-account="${SERVICE_ACCOUNT_FUNCTION}"
-
-gcloud pubsub topics add-iam-policy-binding $TOPIC_ID \
-    --member="serviceAccount:$SERVICE_ACCOUNT_FUNCTION"\
-    --role="roles/pubsub.publisher"
-
-
-echo "${green} 4. Using Cloud Scheduler to trigger Cloud Function every 5 minutes...${reset}"
-#Creating App Engine Application (Needed for the Scheduler)
-
-gcloud app create --region=$REGION
-
-gcloud scheduler jobs create pubsub $SCHEDULER_JOB \
-  --topic="projects/$PROJECT_ID/topics/$PUBSUB_CLOUD_FUNCTION" \
-  --attributes="userId=UserDemo, topic=$TOPIC_ID" \
-  --schedule='*/1 * * * *' \
-   --message-body='Triggering Cloud Function every 5 minutes' \
-   --description='Continuous Pulling of dexcom data' \
-   --time-zone='UTC' \
-   --location=$REGION
-
-
-echo "5. Creating Cloud Storage bucket... $CS_BUCKET"
-gsutil mb "$CS_BUCKET"
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$SERVICE_ACCOUNT_DATAFLOW" \
-  --role="roles/storage.objectCreator"
-
-sleep 3
-
-#TODO Making Service Accounts an owner - need to find minimum required riveleges later
-gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$SERVICE_ACCOUNT_DATAFLOW" --role='roles/owner'
-gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$SERVICE_ACCOUNT_FUNCTION" --role='roles/owner'
-
-echo "${green} 6. Creating BigQuery Dataset/Table for DEXCOM data...${reset}"
-bq --location="${REGION}" mk --dataset ${BIGQUERY_DATASET}
-bq mk --table ${BIGQUERY_DATASET}.${BIGQUERY_TABLE} message:STRING,userId:STRING,type:STRING
-
-echo "${green} 7. Granting Required permissions for service accounts...${reset}"
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$SERVICE_ACCOUNT_DATAFLOW" \
-  --role="roles/dataflow.worker"
-
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$SERVICE_ACCOUNT_DATAFLOW" \
-  --role="roles/storage.admin"
-
-gcloud pubsub topics add-iam-policy-binding $TOPIC_ID \
-    --member="serviceAccount:$SERVICE_ACCOUNT_DATAFLOW"\
-    --role="roles/pubsub.editor"
-
-echo "${green} 8. Setting up network...${reset}"
-
-gcloud compute networks create default --project="$PROJECT_ID" --subnet-mode=auto --mtu=1460 --bgp-routing-mode=regional
-
-gcloud compute firewall-rules create default-allow-internal --project="$PROJECT_ID" \
-      --network=projects/"$PROJECT_ID"/global/networks/default \
-      --description=Allows\ connections\ from\ any\ source\ in\ the\ network\ IP\ range\ to\ any\ instance\ on\ the\ network\ using\ all\ protocols. \
-      --direction=INGRESS --priority=65534 --source-ranges=10.128.0.0/9 --action=ALLOW --rules=all
-
-
-
-echo "${green} 9. Creating DataFlow Pipeline to Ingest Data into BigQuery (Last Step)..${reset}"
-gcloud dataflow jobs run $DATAFLOW_JOB \
-  --gcs-location gs://dataflow-templates-"${REGION}"/latest/PubSub_Subscription_to_BigQuery \
-  --staging-location "$CS_BUCKET/temp" \
-  --region "${REGION}" \
-  --service-account-email="${SERVICE_ACCOUNT_DATAFLOW}" \
-  --max-workers 1 --num-workers 1 \
-  --parameters inputSubscription=projects/"$PROJECT_ID"/subscriptions/$SUBSCRIPTION_ID,outputTableSpec="$PROJECT_ID":$BIGQUERY_DATASET.$BIGQUERY_TABLE
-
-
-
-
-
-
+# clean

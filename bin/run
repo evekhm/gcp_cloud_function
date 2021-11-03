@@ -1,0 +1,192 @@
+#! /bin/bash
+
+##########################################################################################
+# This script deploys Cloud Function to Retrieve REST API Data and put into the BigQuery.
+##########################################################################################
+set -u # This prevents running the script if any of the variables have not been set
+set -e # Exit if error is detected during pipeline execution
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+print="$DIR/print"
+
+if [ -z ${APPLICATION+x} ]   || [ -z ${BIGQUERY_DATASET+x} ]  || \
+            [ -z  ${SOURCE_DIR+x} ] || [ -z  ${RUNTIME+x} ]  ||  \
+            [ -z  ${INTERVAL+x} ]  || [ -z ${SOURCE_ENTRY_POINT+x} ]; then
+  $print "Missing ENV paramters - APPLICATION BIGQUERY_DATASET SOURCE_DIR RUNTIME INTERVAL" 'ERROR'
+  echo "Make sure to run 'source $DIR/SET_cgm' and check settings there"
+  exit 1
+fi
+
+#Using info from active configuration
+PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
+if [ -z "$PROJECT_ID" ]; then
+  $print "Make sure active configuration has PROJECT set" 'ERROR'
+  exit 1
+fi
+######################Variables based on APPLICATION Settings #############################
+REGION=$(gcloud config get-value compute/region 2> /dev/null);
+BUCKET="gs://${PROJECT_ID}-${APPLICATION}"
+
+PROJECT_NUM=$(gcloud projects describe "$PROJECT_ID" \
+  --format='get(projectNumber)')
+SA_FUNCTION="$PROJECT_ID@appspot.gserviceaccount.com"
+SA_DATAFLOW="$PROJECT_NUM-compute@developer.gserviceaccount.com"
+
+
+###############################################################################
+
+create_pubsub_topic(){
+  TOPIC=$1
+  if gcloud pubsub topics list 2>/dev/null | grep "$TOPIC"; then
+    $print "Topic [$TOPIC] already exists - skipping step" INFO
+  else
+    $print "Creating topic [$TOPIC]..." INFO
+    gcloud pubsub topics create "$TOPIC"
+  fi
+
+  $print "Adding required permissions for service accounts" INFO
+  gcloud pubsub topics add-iam-policy-binding "$TOPIC_ID" \
+      --member="serviceAccount:$SA_DATAFLOW"\
+      --role="roles/pubsub.editor"
+  gcloud pubsub topics add-iam-policy-binding "$TOPIC_ID" \
+      --member="serviceAccount:$SA_FUNCTION"\
+      --role="roles/pubsub.publisher"
+}
+
+create_pubsub_subscription(){
+  SUBSCRIPTION=$1
+  TOPIC=$2
+  $print "Dropping subscription [$SUBSCRIPTION] to avoid processing of old messages..." INFO
+  "$DIR"/clean -subscription="$SUBSCRIPTION"
+
+  $print "Creating subscription [$SUBSCRIPTION]..." INFO
+  gcloud pubsub subscriptions create "$SUBSCRIPTION" --topic "$TOPIC"
+}
+
+create_gcs_bucket()
+{
+  if gsutil ls | grep "${BUCKET}"; then
+      $print "Bucket [$BUCKET] already exists - skipping step" INFO
+  else
+      echo "Creating GCS bucket for pipeline: [$BUCKET]..."
+      gsutil mb -p "$PROJECT_ID" "${BUCKET}"/
+      # Make bucket visible to the DataFlow worker
+      #gsutil iam ch allUsers:objectViewer gs://${CS_BUCKET}
+  fi
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$SA_DATAFLOW" \
+    --role="roles/storage.objectCreator"
+}
+
+deploy_cloud_function()
+{
+  gcloud functions deploy monitor_pubsub \
+      --trigger-topic ${PUBSUB_COMMAND_TOPIC} \
+      --runtime $RUNTIME --source="${SOURCE_DIR}" \
+      --entry-point=$SOURCE_ENTRY_POINT \
+      --service-account=$SA_FUNCTION
+
+  # Setup SA Function Account
+  # TODO
+}
+
+create_bq_dt()
+{
+  DATASET=$1
+  TABLE=$2
+  if bq --location="${REGION}" ls | grep  "${DATASET}"; then
+    $print "Dataset already exists [${DATASET}] - skipping step" INFO
+  else
+    bq --location="${REGION}" mk --dataset "${DATASET}"
+    bq mk --table "${DATASET}"."${TABLE}" message:STRING,userId:STRING,type:STRING
+  fi
+}
+
+deploy_cloud_scheduler()
+{
+  #Creating App Engine Application (Required for the Scheduler)
+  if gcloud app describe 2>&1 >/dev/null | grep 'does not contain an App Engine application' > /dev/null; then
+      echo "GAE Default App not found - initializing AppEngines on the project..."
+      gcloud app create --region="$REGION"
+      LOCATION="$REGION"
+  else
+      LOCATION=$(gcloud compute regions list --format "value(name)" | grep "$(gcloud app describe --format "value(locationId)")")
+  fi
+
+  #  Any resource that needs App Engine can only be created/updated in the App Engine region.
+
+  if gcloud scheduler jobs list --format "value(ID)" 2>/dev/null | grep "$SCHEDULER_JOB"; then
+    $print "Job $SCHEDULER_JOB already exists - skipping step" INFO
+  else
+    gcloud scheduler jobs create pubsub "$SCHEDULER_JOB" \
+        --topic="projects/$PROJECT_ID/topics/$PUBSUB_COMMAND_TOPIC" \
+        --attributes="userId=UserDemo,topic=$TOPIC_ID" \
+        --schedule="*/$INTERVAL * * * *" \
+        --message-body="Triggering Cloud Function every $INTERVAL minutes" \
+        --description="Continuous Pulling of $APPLICATION data" \
+        --time-zone='UTC' \
+        --location="$LOCATION"
+  fi
+}
+
+deploy_dataflow()
+{
+  #Cancel job if already exists
+  gcloud dataflow jobs list \
+          --filter "NAME:$DATAFLOW_JOB AND STATE=Running" \
+          --format 'value(JOB_ID)' \
+          --region "$REGION" 2>/dev/null \
+         | xargs gcloud dataflow jobs cancel --region "$REGION"
+
+
+  canceling=$(gcloud dataflow jobs list \
+          --filter "NAME:$DATAFLOW_JOB AND STATE=Cancelling" \
+          --format 'value(JOB_ID)' 2>/dev/null \
+          --region "$REGION")
+
+  if [ -z $canceling ]; then
+      gcloud dataflow jobs run $DATAFLOW_JOB \
+      --gcs-location gs://dataflow-templates-"${REGION}"/latest/PubSub_Subscription_to_BigQuery \
+      --staging-location "$BUCKET/dataflow" \
+      --region "${REGION}" \
+      --service-account-email="${SA_DATAFLOW}" \
+      --max-workers 1 --num-workers 1 \
+      --parameters inputSubscription=projects/"$PROJECT_ID"/subscriptions/$SUBSCRIPTION_ID,outputTableSpec="$PROJECT_ID":$BIGQUERY_DATASET.$BIGQUERY_TABLE
+  else
+    $print 'Will not start the job, because cancelling of previous one is not completed. ' WARNING
+  fi
+}
+
+
+
+
+##############################################################################
+#                         Flow to Deploy Resources
+##############################################################################
+$print "1. Creating Topic=[$TOPIC_ID] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
+create_pubsub_topic "$TOPIC_ID"
+create_pubsub_subscription "$SUBSCRIPTION_ID" "$TOPIC_ID"
+
+$print "2. Creating Topic=[$PUBSUB_COMMAND_TOPIC] to Trigger Cloud Function..."
+create_pubsub_topic "$PUBSUB_COMMAND_TOPIC"
+
+$print "3. Deploying Cloud Function=[$SOURCE_ENTRY_POINT] to access [$APPLICATION] API upon Topic=[$PUBSUB_COMMAND_TOPIC]"
+$print "Retrieved data will be published as a message into [$TOPIC_ID] topic" INFO
+deploy_cloud_function
+
+$print "4. Creating Cloud Scheduler to trigger [$PUBSUB_COMMAND_TOPIC] topic every $INTERVAL (min)..."
+deploy_cloud_scheduler
+
+$print "5. Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
+create_gcs_bucket
+
+$print "6. Creating BigQuery Dataset/Table for the received data..."
+create_bq_dt "${BIGQUERY_DATASET}" "${BIGQUERY_TABLE}"
+
+$print "7. Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
+deploy_dataflow
+
+
+
+
+
+

@@ -10,12 +10,12 @@ CLIENT_SECRET = "gMKbRit4PrKoJaOj"
 REDIRECT_URI = ""
 ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI0ZjRhNzAwYS04ZDU0LTQ5ZGYtYTg4OS0zOWVhOGQ1MWZmYjIiLCJhdWQiOiJodHRwczovL3NhbmRib3gtYXBpLmRleGNvbS5jb20iLCJzY29wZSI6WyJlZ3YiLCJjYWxpYnJhdGlvbiIsImRldmljZSIsImV2ZW50Iiwic3RhdGlzdGljcyIsIm9mZmxpbmVfYWNjZXNzIl0sImlzcyI6Imh0dHBzOi8vc2FuZGJveC1hcGkuZGV4Y29tLmNvbSIsImV4cCI6MTYzMzY1NjMwMCwiaWF0IjoxNjMzNjQ5MTAwLCJjbGllbnRfaWQiOiJ6Rlk0YXJNelFuNXJmMGhSYk5iZkRLUVpmZjkxNzVhRiJ9.YzqotqLPkVx39XGE9DMNabALXDeMn1gKxZ4QvtzxPxOC8LeJcTXG2a-Zq0owv3HpAYm-VYuDgL_4nBAxCrYfgxFrLl5taFnbevRoTg0tGeaF6fbnzjnSHc7CXVA2d4UT0DAnWaAIdAI1KbQlk2GR4x2Ys1wA4AYgFc5kzve77uwX0rZgi8cNJboF7Z740xST-I_EEXxknA_wzz1bdAL9e52dACx3XTOodrXTjJ5kvIi2TxJvS8tvHtZJUIkFstc-E9LzbgNr4F19GowRHN0JyV7cDJleH_RA6inqWJwTey6B4v4iXH-vGEyRf3iXdiP-BNkQ5ZbkO4eQn-xAGashTQ"
 REFRESH_TOKEN = "d43d263d403995be3af5227801833e40"
-USER_ID = 'User4'
-TOPIC_ID = 'dexcom-topic' #TODO
 API_MESSAGE = 'egvs'
+conn = http.client.HTTPSConnection("sandbox-api.dexcom.com")
+
 LATEST_DATE = "2021-10-02" #Available in dexcom SandBox
 numdays = 360
-conn = http.client.HTTPSConnection("sandbox-api.dexcom.com")
+
 
 
 def get_latest_data(access_token):
@@ -61,17 +61,21 @@ def monitor_pubsub(event, context):
     data = base64.b64decode(event['data'])
     print(f'Received message:{data}')
 
-  topic_id = TOPIC_ID
-  user_id = USER_ID
+  user_id = None
+  topic_id = None
   if 'attributes' in event:
     attributes = event['attributes']
-    keys = ",".join([x for x in  attributes.keys])
-    print(f"Received message attributes: {keys}")
+    print(f"Received message with attributes: {attributes}")
     if 'topic' in attributes:
         topic_id = attributes['topic']
     if 'userId' in attributes:
       user_id = attributes['userId']
-  return monitor(user_id, topic_id, API_MESSAGE)
+    if not topic_id:
+      return f"Aborted: userId is unspecified"
+    if not user_id:
+      return f"Aborted: topc is unspecified"
+
+    return monitor(user_id, topic_id, API_MESSAGE)
 
 
 def monitor(user_id, topic_id, api_message):
@@ -185,4 +189,4 @@ def get_data_range(access_token):
   data_object = json.loads(res.read())
   print(json.dumps(data_object, indent=2))
 
-monitor(USER_ID, TOPIC_ID, API_MESSAGE)
+monitor('TestUser', "dexcom-topic", API_MESSAGE)

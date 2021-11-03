@@ -1,20 +1,11 @@
 #!/usr/bin/env bash
 
-
-#gcloud org-policies list --project=$PROJECT_ID --show-unset --format='value(constraint)' | while read CONSTRAINT
-#do
-#    echo $CONSTRAINT
-    #gcloud org-policies reset $CONSTRAINT  --project=$PROJECT_ID
-#done
-
-
-#gcloud pubsub topics list --filter=topicId:mytopic
-
-REGION=$(gcloud config get-value compute/region)
-PROJECT_ID=$(gcloud config get-value core/project)
-APPLICATION='dexcom'
-BIGQUERY_DATASET='datacloud'
+REGION=$(gcloud config get-value compute/region 2> /dev/null);
+PROJECT_ID=$(gcloud config get-value core/project 2> /dev/null);
 
 bq query --location=$REGION --nouse_legacy_sql \
- 'SELECT message, JSON_EXTRACT(message, '"'"'$.systemTime'"'"') AS date, JSON_EXTRACT(message, '"'"'$.value'"'"') AS value  FROM `'"${PROJECT_ID}"'`.datacloud.dexcom'
+ 'SELECT message, userId,' \
+  ' JSON_EXTRACT(message, '"'"'$.systemTime'"'"') AS date,' \
+  ' JSON_EXTRACT(message, '"'"'$.value'"'"') AS value,'\
+  ' FROM `'"${PROJECT_ID}"'`.datacloud.dexcom'
 

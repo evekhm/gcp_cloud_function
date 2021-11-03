@@ -1,0 +1,93 @@
+#! /bin/bash
+
+set -u # This prevents running the script if any of the variables have not been set
+set -e # Exit if error is detected during pipeline execution
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+print="$DIR/print"
+
+PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
+if [ "$#" -lt 1 ]; then
+  if [ -z "$PROJECT_ID" ]; then
+    $print 'Project not set in the active config' WARNING
+    exit 1
+  else
+    $print "Clearning all resources for the project=$PROJECT_ID"
+    RESOURCE='all'
+  fi
+else
+  RESOURCE=$1
+fi
+
+clean(){
+  for i in "$@"; do
+    $print "$i" INFO
+    case $i in
+      -subscription=*)
+        SUB="${i#*=}"
+        if gcloud pubsub subscriptions list 2>/dev/null | grep "$SUB"; then
+          gcloud pubsub subscriptions delete "$SUB"
+        fi
+        shift # past argument=value
+        ;;
+      -topic=*)
+        TOPIC="${i#*=}"
+        if gcloud pubsub topics list 2>/dev/null | grep "$TOPIC"; then
+          gcloud pubsub topics delete "$TOPIC"
+        fi
+        shift # past argument=value
+        ;;
+      -cloud_function=*)
+        NAME="${i#*=}"
+        if gcloud functions list 2>/dev/null | grep "$NAME"; then
+          gcloud functions delete "$NAME" --quiet
+        fi
+        shift # past argument=value
+        ;;
+      -storage=*)
+        CS="${i#*=}"
+        if gsutil ls | grep "${BUCKET}"; then
+           gsutil rm -r "$CS"
+        fi
+        shift # past argument=value
+        ;;
+      -bq=*)
+        DATASET="${i#*=}"
+        if bq ls 2>/dev/null | grep "$DATASET"; then
+          bq rm -f -t "$DATASET"."$BIGQUERY_TABLE"
+          bq rm -f "$DATASET"
+        fi
+        shift # past argument=value
+        ;;
+      -scheduler=*)
+        JOB="${i#*=}"
+        if gcloud scheduler jobs list 2>/dev/null | grep "$JOB"; then
+          gcloud scheduler jobs delete "$JOB" --quiet
+        fi
+        shift # past argument=value
+        ;;
+      -dataflow=*)
+        JOB="${i#*=}"
+        gcloud dataflow jobs list \
+          --filter "NAME:$JOB AND STATE=Running" \
+          --format 'value(JOB_ID)' \
+          --region "$REGION" 2>/dev/null \
+          | xargs gcloud dataflow jobs cancel --region "$REGION"
+        shift # past argument=value
+        ;;
+      all)
+        clean -subscription="$SUBSCRIPTION_ID" -topic="$TOPIC_ID" \
+            -topic="$PUBSUB_COMMAND_TOPIC" -storage="gs://${PROJECT_ID}-${APPLICATION}"\
+            -cloud_function="$SOURCE_ENTRY_POINT" -dataflow="$DATAFLOW_JOB" \
+            -scheduler="$SCHEDULER_JOB" -bq="$BIGQUERY_DATASET"
+        ;;
+
+      *)
+        # unknown option
+        ;;
+    esac
+done
+}
+
+
+clean "$RESOURCE"

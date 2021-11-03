@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$DIR"/defs
-
-export CLOUDSDK_CORE_PROJECT="$PROJECT"
-export CLOUDSDK_COMPUTE_REGION="$REGION"
-export CLOUDSDK_COMPUTE_ZONE="$ZONE"
-
-gcloud info

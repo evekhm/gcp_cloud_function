@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$DIR"/defs
+gcloud config configurations activate argolis
+
+org=$(gcloud projects get-ancestors "${PROJECT_ID}" --format="csv[no-heading](id,type)" | grep ",organization$" | cut -d"," -f1 )
+export ORGANIZATION_ID=${org}
+echo "$ORGANIZATION_ID"
+
+#export CLOUDSDK_CORE_PROJECT="$PROJECT_ID"
+#export CLOUDSDK_COMPUTE_REGION="$REGION"
+#export CLOUDSDK_COMPUTE_ZONE="$ZONE"
+PROJECT_ID=$(gcloud config get-value core/project)
+export PROJECT_ID
+
+GCP_ACCOUNT=$(gcloud config get-value core/account)
+export GCP_ACCOUNT
+
+ZONE=$(gcloud config get-value compute/zone)
+export ZONE
+
+REGION=$(gcloud config get-value compute/region)
+export REGION
+
+gcloud info

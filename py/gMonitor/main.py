@@ -55,7 +55,7 @@ def monitor_http(request):
   return monitor(topic_id, user_id, API_MESSAGE)
 
 
-def monitor_pubsub(event, context):
+def dexcom_monitor(event, context):
   import base64
   if 'data' in event:
     data = base64.b64decode(event['data'])

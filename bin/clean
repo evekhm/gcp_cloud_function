@@ -3,10 +3,12 @@
 set -u # This prevents running the script if any of the variables have not been set
 set -e # Exit if error is detected during pipeline execution
 
+# Clean all - deletes all resources created by run scriipt
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 print="$DIR/print"
 
 PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
+
 if [ "$#" -lt 1 ]; then
   if [ -z "$PROJECT_ID" ]; then
     $print 'Project not set in the active config' WARNING
@@ -23,6 +25,21 @@ clean(){
   for i in "$@"; do
     $print "$i" INFO
     case $i in
+      -service_account=*)
+        ACCOUNT="${i#*=}"
+        if gcloud iam service-accounts list 2>/dev/null | grep "$ACCOUNT"; then
+          gcloud iam service-accounts delete "$ACCOUNT" --quiet
+        fi
+        shift # past argument=value
+        ;;
+      -role=*)
+        ROLE="${i#*=}"
+        if gcloud iam roles list 2>/dev/null --project "$PROJECT_ID"| grep "$ROLE"; then
+          echo "Deleting $ROLE"
+          gcloud iam roles delete "$ROLE" --project  "$PROJECT_ID" --quiet
+        fi
+        shift # past argument=value
+        ;;
       -subscription=*)
         SUB="${i#*=}"
         if gcloud pubsub subscriptions list 2>/dev/null | grep "$SUB"; then
@@ -76,10 +93,12 @@ clean(){
         shift # past argument=value
         ;;
       all)
+        SERVICE_ACCOUNT_EMAIL=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
         clean -subscription="$SUBSCRIPTION_ID" -topic="$TOPIC_ID" \
             -topic="$PUBSUB_COMMAND_TOPIC" -storage="gs://${PROJECT_ID}-${APPLICATION}"\
             -cloud_function="$SOURCE_ENTRY_POINT" -dataflow="$DATAFLOW_JOB" \
-            -scheduler="$SCHEDULER_JOB" -bq="$BIGQUERY_DATASET"
+            -scheduler="$SCHEDULER_JOB" -bq="$BIGQUERY_DATASET" \
+            -service_account="$SERVICE_ACCOUNT_EMAIL"
         ;;
 
       *)

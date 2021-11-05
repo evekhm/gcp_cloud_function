@@ -25,12 +25,10 @@ fi
 ######################Variables based on APPLICATION Settings #############################
 REGION=$(gcloud config get-value compute/region 2> /dev/null);
 BUCKET="gs://${PROJECT_ID}-${APPLICATION}"
+PROJECT_NUM=$(gcloud projects describe "$PROJECT_ID" --format='get(projectNumber)')
+SERVICE_ACCOUNT=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
 
-PROJECT_NUM=$(gcloud projects describe "$PROJECT_ID" \
-  --format='get(projectNumber)')
-SA_FUNCTION="$PROJECT_ID@appspot.gserviceaccount.com"
-SA_DATAFLOW="$PROJECT_NUM-compute@developer.gserviceaccount.com"
-
+#gcloud iam service-accounts list --filter="EMAIL=${SERVICE_ACCOUNT}"
 
 ###############################################################################
 
@@ -45,64 +43,65 @@ create_pubsub_topic(){
 
   $print "Adding required permissions for service accounts" INFO
   gcloud pubsub topics add-iam-policy-binding "$TOPIC_ID" \
-      --member="serviceAccount:$SA_DATAFLOW"\
+      --member="serviceAccount:$SERVICE_ACCOUNT"\
       --role="roles/pubsub.editor"
   gcloud pubsub topics add-iam-policy-binding "$TOPIC_ID" \
-      --member="serviceAccount:$SA_FUNCTION"\
+      --member="serviceAccount:$SERVICE_ACCOUNT"\
       --role="roles/pubsub.publisher"
 }
 
 create_pubsub_subscription(){
   SUBSCRIPTION=$1
   TOPIC=$2
-  $print "Dropping subscription [$SUBSCRIPTION] to avoid processing of old messages..." INFO
-  "$DIR"/clean -subscription="$SUBSCRIPTION"
+  if gcloud pubsub subscriptions list 2>/dev/null | grep "$SUBSCRIPTION"; then
+    $print "Dropping subscription [$SUBSCRIPTION] to avoid processing of old messages..." INFO
+    "$DIR"/clean -subscription="$SUBSCRIPTION"
+  fi
 
   $print "Creating subscription [$SUBSCRIPTION]..." INFO
   gcloud pubsub subscriptions create "$SUBSCRIPTION" --topic "$TOPIC"
 }
 
-create_gcs_bucket()
-{
+create_gcs_bucket(){
   if gsutil ls | grep "${BUCKET}"; then
       $print "Bucket [$BUCKET] already exists - skipping step" INFO
   else
       echo "Creating GCS bucket for pipeline: [$BUCKET]..."
       gsutil mb -p "$PROJECT_ID" "${BUCKET}"/
-      # Make bucket visible to the DataFlow worker
-      #gsutil iam ch allUsers:objectViewer gs://${CS_BUCKET}
   fi
-  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-    --member="serviceAccount:$SA_DATAFLOW" \
-    --role="roles/storage.objectCreator"
+
+  gsutil iam ch serviceAccount:"${SERVICE_ACCOUNT}":objectViewer "${BUCKET}"
+
+#  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+#    --member="serviceAccount:$SA_DATAFLOW" \
+#    --role="roles/storage.admin"
 }
 
-deploy_cloud_function()
-{
+deploy_cloud_function(){
   gcloud functions deploy monitor_pubsub \
       --trigger-topic ${PUBSUB_COMMAND_TOPIC} \
       --runtime $RUNTIME --source="${SOURCE_DIR}" \
       --entry-point=$SOURCE_ENTRY_POINT \
-      --service-account=$SA_FUNCTION
+      --service-account=$SERVICE_ACCOUNT
 
   # Setup SA Function Account
   # TODO
 }
 
-create_bq_dt()
-{
-  DATASET=$1
-  TABLE=$2
-  if bq --location="${REGION}" ls | grep  "${DATASET}"; then
-    $print "Dataset already exists [${DATASET}] - skipping step" INFO
+create_bq_dt(){
+  if bq --location="${REGION}" ls | grep  "${BIGQUERY_DATASET}"; then
+    $print "Dataset already exists [${BIGQUERY_DATASET}] - skipping step" INFO
   else
-    bq --location="${REGION}" mk --dataset "${DATASET}"
-    bq mk --table "${DATASET}"."${TABLE}" message:STRING,userId:STRING,type:STRING
+    bq --location="${REGION}" mk --dataset "${BIGQUERY_DATASET}"
+    bq mk --table "${BIGQUERY_DATASET}"."${BIGQUERY_TABLE}" message:STRING,userId:STRING,type:STRING
   fi
+  bq add-iam-policy-binding \
+      --member="serviceAccount:$SERVICE_ACCOUNT"\
+      --role="roles/bigquery.dataEditor" \
+      "${PROJECT_ID}:${BIGQUERY_DATASET}.${BIGQUERY_TABLE}"
 }
 
-deploy_cloud_scheduler()
-{
+deploy_cloud_scheduler(){
   #Creating App Engine Application (Required for the Scheduler)
   if gcloud app describe 2>&1 >/dev/null | grep 'does not contain an App Engine application' > /dev/null; then
       echo "GAE Default App not found - initializing AppEngines on the project..."
@@ -128,8 +127,7 @@ deploy_cloud_scheduler()
   fi
 }
 
-deploy_dataflow()
-{
+deploy_dataflow(){
   #Cancel job if already exists
   gcloud dataflow jobs list \
           --filter "NAME:$DATAFLOW_JOB AND STATE=Running" \
@@ -144,46 +142,130 @@ deploy_dataflow()
           --region "$REGION")
 
   if [ -z $canceling ]; then
-      gcloud dataflow jobs run $DATAFLOW_JOB \
+      gcloud dataflow jobs run "$DATAFLOW_JOB" \
       --gcs-location gs://dataflow-templates-"${REGION}"/latest/PubSub_Subscription_to_BigQuery \
       --staging-location "$BUCKET/dataflow" \
       --region "${REGION}" \
-      --service-account-email="${SA_DATAFLOW}" \
+      --service-account-email="${SERVICE_ACCOUNT}" \
       --max-workers 1 --num-workers 1 \
-      --parameters inputSubscription=projects/"$PROJECT_ID"/subscriptions/$SUBSCRIPTION_ID,outputTableSpec="$PROJECT_ID":$BIGQUERY_DATASET.$BIGQUERY_TABLE
+      --parameters inputSubscription=projects/"$PROJECT_ID"/subscriptions/${SUBSCRIPTION_ID},outputTableSpec="$PROJECT_ID":${BIGQUERY_DATASET}.${BIGQUERY_TABLE}
+
   else
     $print 'Will not start the job, because cancelling of previous one is not completed. ' WARNING
   fi
+
+
 }
 
+create_service_account() {
+  if gcloud iam service-accounts list --project $PROJECT_ID | grep -q $SERVICE_ACCOUNT_NAME; then
+    $print "Service account $SERVICE_ACCOUNT_NAME has been found." INFO
+  else
+    echo "Creating service account... $SERVICE_ACCOUNT_NAME"
+    gcloud iam service-accounts create $SERVICE_ACCOUNT_NAME \
+        --description="Runs $APPLICATION jobs" \
+        --display-name="$APPLICATION-service-account"
+  fi
+
+  echo "Grant $APPLICATION_ROLE role to the service account $SERVICE_ACCOUNT_NAME ..."
+  gcloud projects add-iam-policy-binding $PROJECT_ID \
+      --member="serviceAccount:$SERVICE_ACCOUNT" \
+      --role="projects/$PROJECT_ID/roles/$APPLICATION_ROLE"
+
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$SERVICE_ACCOUNT" \
+    --role="roles/dataflow.worker"
 
 
+#  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+#    --member="serviceAccount:$SERVICE_ACCOUNT" \
+#    --role="roles/storage.objectCreator"
+
+}
+
+create_role() {
+  if gcloud iam roles list --project $PROJECT_ID 2>/dev/null | grep -q $APPLICATION_ROLE; then
+    $print "Role [$APPLICATION_ROLE] already exists - updating it..." INFO
+    ACTION="update"
+  else
+    echo "Creating a role [$APPLICATION_ROLE]..."
+    ACTION="create"
+  fi
+
+  PERMISSIONS="dataflow.jobs.get,\
+dataflow.jobs.get,\
+logging.logEntries.create,\
+storage.objects.create,\
+bigquery.datasets.get,\
+dataflow.jobs.get,\
+logging.logEntries.create,\
+pubsub.subscriptions.consume,\
+pubsub.subscriptions.get,\
+compute.projects.get,\
+pubsub.subscriptions.consume,\
+pubsub.subscriptions.get,\
+pubsub.subscriptions.list,\
+pubsub.topics.get,\
+pubsub.topics.list,\
+pubsub.topics.publish,\
+pubsub.topics.update,\
+storage.buckets.get,\
+storage.buckets.list,\
+storage.objects.create,\
+storage.objects.get,\
+storage.objects.list,\
+storage.objects.update"
+
+  gcloud iam roles ${ACTION} $APPLICATION_ROLE \
+    --title "$APPLICATION Role" \
+    --description "Access to resources needed to develop and deploy $APPLICATION" \
+    --stage "GA" \
+    --project $PROJECT_ID \
+    --permissions "${PERMISSIONS}"
+
+}
 
 ##############################################################################
 #                         Flow to Deploy Resources
 ##############################################################################
-$print "1. Creating Topic=[$TOPIC_ID] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
+$print "Creating Role=[$APPLICATION_ROLE]"
+create_role
+$print "Creating Service Account=[$SERVICE_ACCOUNT_NAME] binded to [$APPLICATION_ROLE] role"
+create_service_account
+
+$print "Creating Topic=[$TOPIC_ID] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
 create_pubsub_topic "$TOPIC_ID"
 create_pubsub_subscription "$SUBSCRIPTION_ID" "$TOPIC_ID"
 
-$print "2. Creating Topic=[$PUBSUB_COMMAND_TOPIC] to Trigger Cloud Function..."
+$print "Creating Topic=[$PUBSUB_COMMAND_TOPIC] to Trigger Cloud Function..."
 create_pubsub_topic "$PUBSUB_COMMAND_TOPIC"
 
-$print "3. Deploying Cloud Function=[$SOURCE_ENTRY_POINT] to access [$APPLICATION] API upon Topic=[$PUBSUB_COMMAND_TOPIC]"
+$print "Deploying Cloud Function=[$SOURCE_ENTRY_POINT] to access [$APPLICATION] API upon Topic=[$PUBSUB_COMMAND_TOPIC]"
 $print "Retrieved data will be published as a message into [$TOPIC_ID] topic" INFO
 deploy_cloud_function
 
-$print "4. Creating Cloud Scheduler to trigger [$PUBSUB_COMMAND_TOPIC] topic every $INTERVAL (min)..."
+$print "Creating Cloud Scheduler to trigger [$PUBSUB_COMMAND_TOPIC] topic every $INTERVAL (min)..."
 deploy_cloud_scheduler
 
-$print "5. Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
+$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
 create_gcs_bucket
 
-$print "6. Creating BigQuery Dataset/Table for the received data..."
-create_bq_dt "${BIGQUERY_DATASET}" "${BIGQUERY_TABLE}"
+$print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
+create_bq_dt
 
-$print "7. Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
+$print "Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
 deploy_dataflow
+
+#TODO Making Service Accounts an owner - need to find minimum required riveleges later
+#$print "Setting up Required Permissions..."
+#gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+#    --member="serviceAccount:$SA_DATAFLOW" \
+#    --role='roles/owner'
+#
+#gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+#    --member="serviceAccount:$SA_FUNCTION" \
+#    --role='roles/owner'
+
 
 
 

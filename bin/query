@@ -2,10 +2,9 @@
 
 REGION=$(gcloud config get-value compute/region 2> /dev/null);
 PROJECT_ID=$(gcloud config get-value core/project 2> /dev/null);
-
+FROM_CL=' FROM `'"${PROJECT_ID}"'`.'"${BIGQUERY_DATASET}."''"${BIGQUERY_TABLE}"''
 bq query --location=$REGION --nouse_legacy_sql \
  'SELECT message, userId,' \
   ' JSON_EXTRACT(message, '"'"'$.systemTime'"'"') AS date,' \
-  ' JSON_EXTRACT(message, '"'"'$.value'"'"') AS value,'\
-  ' FROM `'"${PROJECT_ID}"'`.datacloud.dexcom'
-
+  ' JSON_EXTRACT(message, '"'"'$.value'"'"') AS value, '\
+  $FROM_CL

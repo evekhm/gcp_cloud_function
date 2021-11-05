@@ -1,19 +1,25 @@
 #! /bin/bash
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ##################################################################################
-#                              Application Specific SETTINGS
+#          Application Specific SETTINGS (Poject-Independent)
 ##################################################################################
 export APPLICATION='dexcom'          # Application Label
-export BIGQUERY_DATASET='datacloud'  # BigQuery DataSet Name
-export BIGQUERY_TABLE=$APPLICATION   # BigQuery Table name for Application Data
 
-# Cloud Function Settings
+# BigQuery
+export BIGQUERY_DATASET='datacloud'  # DataSet Name
+export BIGQUERY_TABLE=$APPLICATION   # Table name for Application Data
+
+# Cloud Function
 export SOURCE_DIR="${DIR}/../py/gMonitor"  # Cloud Function Directory - relative (main.py)
-export SOURCE_ENTRY_POINT='monitor_pubsub' # Entry point for Cloud Function
+export SOURCE_ENTRY_POINT='dexcom_monitor' # Entry point for Cloud Function
 export RUNTIME='python37' # The only properly Supported for Runtime Environment
+
+# Cloud Scheduler
 export INTERVAL=5 # Data Retrieval Interval in minutes
 
-# Variabls
+# Variable Names
+export APPLICATION_ROLE=${APPLICATION}_role
+export SERVICE_ACCOUNT_NAME=${APPLICATION}-service-account  #Runs Cloud Functions, DataFlow, Scheduler
 export TOPIC_ID=$APPLICATION'-topic'       # Pub/Sub Topic for Device Data
 export SUBSCRIPTION_ID=$APPLICATION'-sub'  # Pub/Sub Subscription for Application Data
 export PUBSUB_COMMAND_TOPIC=$APPLICATION'-call' # Topic to Trigger Cloud Function

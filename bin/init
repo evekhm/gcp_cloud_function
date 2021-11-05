@@ -11,16 +11,16 @@ print="$DIR/print"
 ##################################################################################
 #                              HELPER FUNCTIONS
 ##################################################################################
-generate_project_id() {
-  echo "demo-$(date +%s | head -c 8)" | tr '[:upper:]' '[:lower:]'
-}
-
 if [ "$#" -ne 1 ]; then
-  #  PROJECT_ID=$(generate_project_id)   #Random Unique Project ID
-  #  echo 'Generated Unique Project Id' "$PROJECT_ID"
-  $print "Usage: ${BASH_SOURCE[0]} PROJECT_ID" 'WARNING'
-  echo   "    Where PROJECT_ID is either existing one or a unique new one"
-  exit 1
+  PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
+  if [ -z $PROJECT_ID ]; then
+    $print "Usage: ${BASH_SOURCE[0]} PROJECT_ID" 'WARNING'
+    echo   "    Where PROJECT_ID is either existing one or a unique new one"
+    echo   "    Optional: set Project into active config, then input parameter could be omitted"
+    exit 1
+  else
+    $print "Using Project=[$PROJECT_ID] from the active config" INFO
+  fi
 else
   PROJECT_ID=$1
 fi
@@ -44,7 +44,7 @@ function set_config() {
     found=$(gcloud config configurations list  --format="csv[no-heading](NAME)" | grep "$config_name")
     if [ -z "$found"  ];
     then
-      "$DIR/print" "Creating $config_name environment"
+      $print "Creating $config_name environment"
       gcloud config configurations create "$config_name"
     else
       gcloud config configurations activate "$config_name"
@@ -54,10 +54,8 @@ function set_config() {
     gcloud config set compute/zone "$3"
     gcloud config set compute/region "$4"
     gcloud config set account "$5"
-    echo "Updating config done for $config_name"
+    print "Updated config=[$config_name]" INFO
 }
-
-# Create Project if not existing
 
 if gcloud projects list --format="value(PROJECT_ID)" | grep "$PROJECT_ID"; then
   $print "Using existing project $PROJECT_ID"
@@ -78,10 +76,6 @@ fi
 set_config "$CONFIG" "$PROJECT_ID" "$ZONE" "$REGION" "$ACCOUNT"
 
 
-PROJECT_NUM=$(gcloud projects describe "$(gcloud config get-value project)" --format='get(projectNumber)')
-SA_FUNCTION="$PROJECT_ID@appspot.gserviceaccount.com"
-SA_DATAFLOW="$PROJECT_NUM-compute@developer.gserviceaccount.com"
-
 #############################################
 # Enable APIs for the project
 #############################################
@@ -100,14 +94,14 @@ enable_project_apis() {
 
   $print "Enabling APIs on the project..."
   gcloud services enable $APIS --async
+  echo 'Waiting for [orgpolicy.googleapis.com] to take effect'
+  sleep 5
 }
 
 
 ##### Enable the services required
 enable_project_apis
 
-echo 'Waiting for [orgpolicy.googleapis.com] to take effect'
-sleep 5
 
 #### Modify policy
 $print  "Updating Org Policies..."
@@ -115,43 +109,19 @@ gcloud org-policies reset constraints/cloudfunctions.allowedIngressSettings --pr
 gcloud org-policies reset constraints/compute.requireShieldedVm --project="$PROJECT_ID"
 #Needed otherwise CloudFunction gets google.api_core.exceptions.PermissionDenied: 403 User not authorized to perform this action.
 gcloud org-policies reset cloudfunctions.requireVPCConnector --project="$PROJECT_ID"
-#gcloud org-policies reset compute.restrictNonConfidentialComputing --project=$PROJECT_ID
-#gcloud org-policies reset cloudbuild.allowedWorkerPools --project=$PROJECT_ID
-#gcloud org-policies reset gcp.resourceLocations --project=$PROJECT_ID
 gcloud org-policies reset iam.disableServiceAccountCreation --project="$PROJECT_ID"
 # This one is required for DataFlow: The project quota may have been exceeded or access control policies may be preventing the operation; review the Cloud Logging "GCE VM Instance" log for diagnostics.
 gcloud org-policies reset --project="$PROJECT_ID"  compute.vmExternalIpAccess
 
 $print 'Setting up Network...'
-network=$(gcloud compute networks list --filter="name=( 'default' )" --format='get(NAME)') 2>/dev/null
+network=$(gcloud compute networks list --filter="name=( 'default' )" --format='get(NAME)' 2>/dev/null)
 if [ -z "$network" ]; then
-
     gcloud compute networks create default --project="$PROJECT_ID" --subnet-mode=auto --mtu=1460 --bgp-routing-mode=regional
     gcloud compute firewall-rules create default-allow-internal --project="$PROJECT_ID" \
           --network=projects/"$PROJECT_ID"/global/networks/default \
           --description=Allows\ connections\ from\ any\ source\ in\ the\ network\ IP\ range\ to\ any\ instance\ on\ the\ network\ using\ all\ protocols. \
           --direction=INGRESS --priority=65534 --source-ranges=10.128.0.0/9 --action=ALLOW --rules=all
 fi
-
-
-
-#TODO Making Service Accounts an owner - need to find minimum required riveleges later
-$print "Setting up Required Permissions..."
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-    --member="serviceAccount:$SA_DATAFLOW" \
-    --role='roles/owner'
-
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-    --member="serviceAccount:$SA_FUNCTION" \
-    --role='roles/owner'
-
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$SA_DATAFLOW" \
-  --role="roles/dataflow.worker"
-
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$SA_DATAFLOW" \
-  --role="roles/storage.admin"
 
 #gcloud org-policies list --project=$PROJECT_ID --show-unset --format='value(constraint)' | while read CONSTRAINT
 #do
@@ -162,6 +132,19 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 gcloud info
 gcloud config configurations list
 
-echo "#################################################"
+############  Init Project Dependent Variables ############
+PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
+export PROJECT_ID
+
+BUCKET="gs://${PROJECT_ID}-${APPLICATION}"
+export BUCKET
+
+PROJECT_NUM=$(gcloud projects describe "$PROJECT_ID" --format='get(projectNumber)')
+export PROJECT_NUM
+
+SERVICE_ACCOUNT=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
+export SERVICE_ACCOUNT
+
+############################################"
 echo "              Project setup complete"
 echo "#################################################"

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+##################################################################################
+#                        GCP and  Deployment SETTINGS
+##################################################################################
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 export ACCOUNT='admin@evekhm.altostrat.com'

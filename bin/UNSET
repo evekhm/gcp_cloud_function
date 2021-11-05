@@ -15,6 +15,8 @@ unset PUBSUB_COMMAND_TOPIC
 unset SCHEDULER_JOB
 unset DATAFLOW_JOB
 unset BIGQUERY_TABLE
+unset APPLICATION_ROLE
+unset SERVICE_ACCOUNT_NAME
 ##################################################################################
 #                            UNSETTING Project Specific
 ##################################################################################
@@ -23,3 +25,5 @@ unset BILLING
 unset REGION
 unset ZONE
 unset CONFIG
+##################################################################################
+echo "Done ${BASH_SOURCE[0]}"

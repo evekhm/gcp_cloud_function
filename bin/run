@@ -174,11 +174,6 @@ create_service_account() {
     --member="serviceAccount:$SERVICE_ACCOUNT" \
     --role="roles/dataflow.worker"
 
-
-#  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-#    --member="serviceAccount:$SERVICE_ACCOUNT" \
-#    --role="roles/storage.objectCreator"
-
 }
 
 create_role() {

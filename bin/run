@@ -25,11 +25,7 @@ fi
 ######################Variables based on APPLICATION Settings #############################
 REGION=$(gcloud config get-value compute/region 2> /dev/null);
 BUCKET="gs://${PROJECT_ID}-${APPLICATION}"
-PROJECT_NUM=$(gcloud projects describe "$PROJECT_ID" --format='get(projectNumber)')
 SERVICE_ACCOUNT=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
-
-#gcloud iam service-accounts list --filter="EMAIL=${SERVICE_ACCOUNT}"
-
 ###############################################################################
 
 create_pubsub_topic(){
@@ -158,6 +154,8 @@ deploy_dataflow(){
 }
 
 create_service_account() {
+
+  #gcloud iam service-accounts list --filter="EMAIL=${SERVICE_ACCOUNT}"
   if gcloud iam service-accounts list --project $PROJECT_ID | grep -q $SERVICE_ACCOUNT_NAME; then
     $print "Service account $SERVICE_ACCOUNT_NAME has been found." INFO
   else
@@ -255,16 +253,6 @@ create_bq_dt
 
 $print "Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
 deploy_dataflow
-
-#TODO Making Service Accounts an owner - need to find minimum required riveleges later
-#$print "Setting up Required Permissions..."
-#gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-#    --member="serviceAccount:$SA_DATAFLOW" \
-#    --role='roles/owner'
-#
-#gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-#    --member="serviceAccount:$SA_FUNCTION" \
-#    --role='roles/owner'
 
 
 

@@ -4,17 +4,14 @@
 ##################################################################################
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-export ACCOUNT='admin@evekhm.altostrat.com'
-export BILLING='016EA1-F95FE4-01826A'
-export REGION='us-west1'
-export ZONE='us-west1-a'
-export CONFIG='demo'
+if [ -z $REGION ]; then
+  export REGION='us-west1'
+fi
 
-#> gcloud auth login
-# For Google organization, Folder is also needed, but not used in this flow ==>
-#        Use existing Project_ID with proper 'Folder' + ' Billing' Setup
-#FOLDER=261046259366
-#BILLING='01382E-07CCE9-615E10'
+if [ -z $ZONE ]; then
+  export ZONE='us-west1-a'
+fi
+export CONFIG='demo'
 
 source "$DIR/SET_cgm"
 echo "Done ${BASH_SOURCE[0]}"

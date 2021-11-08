@@ -54,7 +54,7 @@ function set_config() {
     gcloud config set compute/zone "$3"
     gcloud config set compute/region "$4"
     gcloud config set account "$5"
-    print "Updated config=[$config_name]" INFO
+    $print "Updated config=[$config_name]" INFO
 }
 
 if gcloud projects list --format="value(PROJECT_ID)" | grep "$PROJECT_ID"; then
@@ -82,7 +82,6 @@ set_config "$CONFIG" "$PROJECT_ID" "$ZONE" "$REGION" "$ACCOUNT"
 enable_project_apis() {
   APIS="compute.googleapis.com \
     pubsub.googleapis.com \
-    orgpolicy.googleapis.com \
     bigquery.googleapis.com \
     dataflow.googleapis.com \
     cloudfunctions.googleapis.com \
@@ -93,9 +92,11 @@ enable_project_apis() {
     cloudscheduler.googleapis.com"
 
   $print "Enabling APIs on the project..."
+  gcloud services enable orgpolicy.googleapis.com #To avoid Error for concurrent policy changes.
   gcloud services enable $APIS --async
-  echo 'Waiting for [orgpolicy.googleapis.com] to take effect'
-  sleep 5
+  echo 'Waiting for org policies to take effect'
+  #TODO use `gcloud beta services operations wait operations` instead
+  sleep 8
 }
 
 

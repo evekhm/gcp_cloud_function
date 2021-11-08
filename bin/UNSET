@@ -26,4 +26,10 @@ unset REGION
 unset ZONE
 unset CONFIG
 ##################################################################################
+
+# Used for Debugging
+unset PROJECT_NUM
+unset BUCKET
+unset SERVICE_ACCOUNT
+
 echo "Done ${BASH_SOURCE[0]}"

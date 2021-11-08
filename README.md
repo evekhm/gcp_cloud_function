@@ -22,7 +22,7 @@ git clone git@github.com:evekhm/gcp.git
 ```
 
 ```console
-cd gcp bin
+cd gcp/bin
 ```
 
 ### Prepare Project
@@ -32,14 +32,16 @@ cd gcp bin
 gcloud auth login
 ```
 
-#### 1. Setup Enviroment Variables for GCP Project creation and deployment:
+#### 1. Setup Enviroment Variables for GCP deployment:
 ```console
 export ACCOUNT='<account>'
 export BILLING='<billing_id>'
-export REGION='us-west1'
-export ZONE='us-west1-a'
+export REGION=<REGION>
+export ZONE=<ZONE>
+export CONFIG=<CONFIGNAME>
 ```
-Argolis BILLING='016EA1-F95FE4-01826A'
+Argolis BILLING='016EA1-F95FE4-01826A' <br>
+CONFIG - is the name of the GCP configuration to be used in this demo.
 
 <p>Example:
 
@@ -48,13 +50,18 @@ export ACCOUNT='admin@myaccount.altostrat.com'
 export BILLING='016EA1-F95FE4-01826A'
 export REGION='us-west1'
 export ZONE='us-west1-a'
+export CONFIG='datacloud-demo'
 ```
 
+Activate Application Specific Settings:
+```console
+source SET_cgm
+```
 
-#### 2. Create and activate dedicated config
+#### 2. Create/Update Project 
 
-Following step creates and activates dedicated config called **dexcom-demo**.<br>
-Enter *PROJECT_ID* - a unique new Project ID to be created.
+Following command activates dedicated CONFIG  and sets up project with PROJECT_ID for the demo.<br>
+For PROJECT_ID specify a new unique Project ID to be created:
 
 ```console
 ./init <PROJECT_ID>
@@ -88,7 +95,7 @@ Sample Output:
 Following command will unset previously set Enviroment Variables (including BILLING, REGION, ZONE):
 
 ```console
-./UNSET
+source ./UNSET
 ```
 
 Following command will delete previously created resources. Project itself will not be deleted.

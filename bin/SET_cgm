@@ -15,7 +15,7 @@ export SOURCE_ENTRY_POINT='dexcom_monitor' # Entry point for Cloud Function
 export RUNTIME='python37' # The only properly Supported for Runtime Environment
 
 # Cloud Scheduler
-export INTERVAL=1 # Data Retrieval Interval in minutes
+export INTERVAL=5 # Data Retrieval Interval in minutes
 
 # Variable Names
 export APPLICATION_ROLE=${APPLICATION}_role

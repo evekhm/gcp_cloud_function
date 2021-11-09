@@ -2,8 +2,8 @@
 ##########################################################################################
 # This script sets Project into active Config and Propogates Settings
 ##########################################################################################
-set -u # This prevents running the script if any of the variables have not been set
-set -e # Exit if error is detected during pipeline execution
+#set -u # This prevents running the script if any of the variables have not been set
+#set -e # Exit if error is detected during pipeline execution
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 print="$DIR/print"
@@ -36,7 +36,7 @@ set_config() {
     found=$(gcloud config configurations list  --format="csv[no-heading](NAME)" | grep "$CONFIG")
     if [ -z "$found"  ];
     then
-      $print "Creating $CONFIG environment"
+      $print "Creating [$CONFIG] environment"
       gcloud config configurations create "$CONFIG"
     else
       gcloud config configurations activate "$CONFIG"
@@ -52,9 +52,9 @@ set_config() {
 
 create_project() {
   if gcloud projects list --format="value(PROJECT_ID)" | grep "$PROJECT_ID"; then
-    $print "Using existing project $PROJECT_ID"
+    $print "Using existing project [$PROJECT_ID]"
   else
-    $print 'Creating new project'  "$PROJECT_ID"
+    $print "Creating new project [$PROJECT_ID]"
     if [ -z ${BILLING+x} ]; then
       $print "BILLING not set, aborting. Please set BILLING variable" ERROR
       exit 1
@@ -78,7 +78,7 @@ enable_project_apis() {
 
   $print "Enabling APIs on the project..."
   gcloud services enable orgpolicy.googleapis.com #To avoid Error for concurrent policy changes.
-  gcloud services enable $APIS --async
+  gcloud services enable $APIS #--async
 
   # TODO use `gcloud beta services operations wait operations` instead
   echo 'Waiting for Enable APIs operation to take effect...'

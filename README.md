@@ -40,7 +40,6 @@ export REGION=<REGION>
 export ZONE=<ZONE>
 export CONFIG=<CONFIGNAME>
 ```
-Argolis BILLING='016EA1-F95FE4-01826A' <br>
 CONFIG - is the name of the GCP configuration to be used in this demo.
 
 <p>Example:
@@ -50,7 +49,7 @@ export ACCOUNT='admin@myaccount.altostrat.com'
 export BILLING='016EA1-F95FE4-01826A'
 export REGION='us-west1'
 export ZONE='us-west1-a'
-export CONFIG='datacloud-demo'
+export CONFIG='cloud-demo'
 ```
 
 Activate Application Specific Settings:
@@ -80,6 +79,21 @@ NAME           IS_ACTIVE   ACCOUNT      PROJECT        COMPUTE_DEFAULT_ZONE  COM
 ```console
 ./run
 ```
+
+If successfull, the output should end as following: 
+```
+==> Creating DataFlow Pipeline to Ingest Data from [dexcom-sub] into BQ [datacloud].[dexcom] (Last Step)..
+createTime: '2021-11-09T00:53:38.741531Z'
+currentStateTime: '1970-01-01T00:00:00Z'
+id: 2021-11-08_16_53_37-7304697809915838769
+location: <REGION>>
+name: dexcom_dataflow_job
+projectId: <PROJECT_ID>
+startTime: '2021-11-09T00:53:38.741531Z'
+type: JOB_TYPE_STREAMING
+
+```
+
 
 ### Query BigTable
 After few minutes, data been collected and streamlined into BigQuery:

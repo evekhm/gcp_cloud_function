@@ -227,30 +227,30 @@ storage.objects.update"
 ##############################################################################
 #                         Flow to Deploy Resources
 ##############################################################################
-#$print "Creating Role=[$APPLICATION_ROLE]"
-#create_role
-#$print "Creating Service Account=[$SERVICE_ACCOUNT_NAME] binded to [$APPLICATION_ROLE] role"
-#create_service_account
-#
-#$print "Creating Topic=[$TOPIC_ID] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
-#create_pubsub_topic "$TOPIC_ID"
-#create_pubsub_subscription "$SUBSCRIPTION_ID" "$TOPIC_ID"
-#
-#$print "Creating Topic=[$PUBSUB_COMMAND_TOPIC] to Trigger Cloud Function..."
-#create_pubsub_topic "$PUBSUB_COMMAND_TOPIC"
-#
-#$print "Deploying Cloud Function=[$SOURCE_ENTRY_POINT] to access [$APPLICATION] API upon Topic=[$PUBSUB_COMMAND_TOPIC]"
-#$print "Retrieved data will be published as a message into [$TOPIC_ID] topic" INFO
-#deploy_cloud_function
-#
-#$print "Creating Cloud Scheduler to trigger [$PUBSUB_COMMAND_TOPIC] topic every $INTERVAL (min)..."
-#deploy_cloud_scheduler
-#
-#$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
-#create_gcs_bucket
-#
-#$print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
-#create_bq_dt
+$print "Creating Role=[$APPLICATION_ROLE]"
+create_role
+$print "Creating Service Account=[$SERVICE_ACCOUNT_NAME] binded to [$APPLICATION_ROLE] role"
+create_service_account
+
+$print "Creating Topic=[$TOPIC_ID] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
+create_pubsub_topic "$TOPIC_ID"
+create_pubsub_subscription "$SUBSCRIPTION_ID" "$TOPIC_ID"
+
+$print "Creating Topic=[$PUBSUB_COMMAND_TOPIC] to Trigger Cloud Function..."
+create_pubsub_topic "$PUBSUB_COMMAND_TOPIC"
+
+$print "Deploying Cloud Function=[$SOURCE_ENTRY_POINT] to access [$APPLICATION] API upon Topic=[$PUBSUB_COMMAND_TOPIC]"
+$print "Retrieved data will be published as a message into [$TOPIC_ID] topic" INFO
+deploy_cloud_function
+
+$print "Creating Cloud Scheduler to trigger [$PUBSUB_COMMAND_TOPIC] topic every $INTERVAL (min)..."
+deploy_cloud_scheduler
+
+$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
+create_gcs_bucket
+
+$print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
+create_bq_dt
 
 $print "Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
 deploy_dataflow

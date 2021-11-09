@@ -80,8 +80,6 @@ deploy_cloud_function(){
       --entry-point=$SOURCE_ENTRY_POINT \
       --service-account=$SERVICE_ACCOUNT
 
-  # Setup SA Function Account
-  # TODO
 }
 
 create_bq_dt(){
@@ -125,19 +123,29 @@ deploy_cloud_scheduler(){
 
 deploy_dataflow(){
   #Cancel job if already exists
-  gcloud dataflow jobs list \
+  exists=$(gcloud dataflow jobs list \
+          --filter "NAME:$DATAFLOW_JOB AND STATE=Running" \
+          --format 'value(JOB_ID)' \
+          --region "$REGION" 2>/dev/null)
+
+  if [[ -n $exists ]]; then
+    #Cancel Previous Job
+      $print "Cancelling previously active job=[$DATAFLOW_JOB]" INFO
+      gcloud dataflow jobs list \
           --filter "NAME:$DATAFLOW_JOB AND STATE=Running" \
           --format 'value(JOB_ID)' \
           --region "$REGION" 2>/dev/null \
          | xargs gcloud dataflow jobs cancel --region "$REGION"
 
+      sleep 10
+  fi
 
   canceling=$(gcloud dataflow jobs list \
-          --filter "NAME:$DATAFLOW_JOB AND STATE=Cancelling" \
-          --format 'value(JOB_ID)' 2>/dev/null \
-          --region "$REGION")
+        --filter "NAME:$DATAFLOW_JOB AND STATE=Cancelling" \
+        --format 'value(JOB_ID)' 2>/dev/null \
+        --region "$REGION")
 
-  if [ -z $canceling ]; then
+  if [ -z "$canceling" ]; then
       gcloud dataflow jobs run "$DATAFLOW_JOB" \
       --gcs-location gs://dataflow-templates-"${REGION}"/latest/PubSub_Subscription_to_BigQuery \
       --staging-location "$BUCKET/dataflow" \
@@ -145,11 +153,9 @@ deploy_dataflow(){
       --service-account-email="${SERVICE_ACCOUNT}" \
       --max-workers 1 --num-workers 1 \
       --parameters inputSubscription=projects/"$PROJECT_ID"/subscriptions/${SUBSCRIPTION_ID},outputTableSpec="$PROJECT_ID":${BIGQUERY_DATASET}.${BIGQUERY_TABLE}
-
   else
-    $print 'Will not start the job, because cancelling of previous one is not completed. ' WARNING
+        $print 'Will not start the new job, since previous is still being cancelled. Please, wait, and try again ' WARNING
   fi
-
 
 }
 
@@ -221,30 +227,30 @@ storage.objects.update"
 ##############################################################################
 #                         Flow to Deploy Resources
 ##############################################################################
-$print "Creating Role=[$APPLICATION_ROLE]"
-create_role
-$print "Creating Service Account=[$SERVICE_ACCOUNT_NAME] binded to [$APPLICATION_ROLE] role"
-create_service_account
-
-$print "Creating Topic=[$TOPIC_ID] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
-create_pubsub_topic "$TOPIC_ID"
-create_pubsub_subscription "$SUBSCRIPTION_ID" "$TOPIC_ID"
-
-$print "Creating Topic=[$PUBSUB_COMMAND_TOPIC] to Trigger Cloud Function..."
-create_pubsub_topic "$PUBSUB_COMMAND_TOPIC"
-
-$print "Deploying Cloud Function=[$SOURCE_ENTRY_POINT] to access [$APPLICATION] API upon Topic=[$PUBSUB_COMMAND_TOPIC]"
-$print "Retrieved data will be published as a message into [$TOPIC_ID] topic" INFO
-deploy_cloud_function
-
-$print "Creating Cloud Scheduler to trigger [$PUBSUB_COMMAND_TOPIC] topic every $INTERVAL (min)..."
-deploy_cloud_scheduler
-
-$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
-create_gcs_bucket
-
-$print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
-create_bq_dt
+#$print "Creating Role=[$APPLICATION_ROLE]"
+#create_role
+#$print "Creating Service Account=[$SERVICE_ACCOUNT_NAME] binded to [$APPLICATION_ROLE] role"
+#create_service_account
+#
+#$print "Creating Topic=[$TOPIC_ID] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
+#create_pubsub_topic "$TOPIC_ID"
+#create_pubsub_subscription "$SUBSCRIPTION_ID" "$TOPIC_ID"
+#
+#$print "Creating Topic=[$PUBSUB_COMMAND_TOPIC] to Trigger Cloud Function..."
+#create_pubsub_topic "$PUBSUB_COMMAND_TOPIC"
+#
+#$print "Deploying Cloud Function=[$SOURCE_ENTRY_POINT] to access [$APPLICATION] API upon Topic=[$PUBSUB_COMMAND_TOPIC]"
+#$print "Retrieved data will be published as a message into [$TOPIC_ID] topic" INFO
+#deploy_cloud_function
+#
+#$print "Creating Cloud Scheduler to trigger [$PUBSUB_COMMAND_TOPIC] topic every $INTERVAL (min)..."
+#deploy_cloud_scheduler
+#
+#$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
+#create_gcs_bucket
+#
+#$print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
+#create_bq_dt
 
 $print "Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
 deploy_dataflow

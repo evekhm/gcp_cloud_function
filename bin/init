@@ -8,9 +8,11 @@ set -e # Exit if error is detected during pipeline execution
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 print="$DIR/print"
 
-##################################################################################
-#                              HELPER FUNCTIONS
-##################################################################################
+if [ -z ${ZONE+x} ]  || [ -z  ${REGION+x} ]  || [ -z ${ACCOUNT+x} ] || [ -z ${CONFIG+x} ]; then
+  $print "Missing (any of) the required ENV paramters - ZONE REGION BILLING ACCOUNT CONFIG" 'ERROR.'
+  exit 1
+fi
+
 if [ "$#" -ne 1 ]; then
   PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
   if [ -z $PROJECT_ID ]; then
@@ -25,60 +27,43 @@ else
   PROJECT_ID=$1
 fi
 
-
-if [ -z ${BILLING+x} ]   || [ -z ${ZONE+x} ]  || [ -z  ${REGION+x} ]  || [ -z ${ACCOUNT+x} ]; then
-  $print "Missing ENV paramters - ZONE REGION BILLING ACCOUNT" 'ERROR.'
-  echo "Make sure to run 'source $DIR/SET' and check settings there"
-  exit 1
-fi
-
-if [ -z "$CONFIG" ]; then
-    CONFIG='default'
-fi
-
 echo "$0" PROJECT_ID="$PROJECT_ID"
 
-
-function set_config() {
-    config_name=$1
-    found=$(gcloud config configurations list  --format="csv[no-heading](NAME)" | grep "$config_name")
+##################################################################################
+#                              HELPER FUNCTIONS
+##################################################################################
+set_config() {
+    found=$(gcloud config configurations list  --format="csv[no-heading](NAME)" | grep "$CONFIG")
     if [ -z "$found"  ];
     then
-      $print "Creating $config_name environment"
-      gcloud config configurations create "$config_name"
+      $print "Creating $CONFIG environment"
+      gcloud config configurations create "$CONFIG"
     else
-      gcloud config configurations activate "$config_name"
+      gcloud config configurations activate "$CONFIG"
     fi
-    gcloud config set project "$2"
+    gcloud config set account "$ACCOUNT"
+    gcloud config set project "$PROJECT_ID"
     gcloud services enable compute.googleapis.com
-    gcloud config set compute/zone "$3"
-    gcloud config set compute/region "$4"
-    gcloud config set account "$5"
-    $print "Updated config=[$config_name]" INFO
+    gcloud config set compute/zone "$ZONE"
+    gcloud config set compute/region "$REGION"
+
+    $print "Updated config=[$CONFIG]" INFO
 }
 
-if gcloud projects list --format="value(PROJECT_ID)" | grep "$PROJECT_ID"; then
-  $print "Using existing project $PROJECT_ID"
-else
-  $print 'Creating new project'  "$PROJECT_ID"
-  gcloud projects create "$PROJECT_ID" --name="$PROJECT_ID" --set-as-default
-  gcloud beta billing projects link "$PROJECT_ID" --billing-account="$BILLING"
-fi
+create_project() {
+  if gcloud projects list --format="value(PROJECT_ID)" | grep "$PROJECT_ID"; then
+    $print "Using existing project $PROJECT_ID"
+  else
+    $print 'Creating new project'  "$PROJECT_ID"
+    if [ -z ${BILLING+x} ]; then
+      $print "BILLING not set, aborting. Please set BILLING variable" ERROR
+      exit 1
+    fi
+    gcloud projects create "$PROJECT_ID" --name="$PROJECT_ID" --set-as-default
+    gcloud beta billing projects link "$PROJECT_ID" --billing-account="$BILLING"
+  fi
+}
 
-gcloud beta billing projects link "$PROJECT_ID" --billing-account="$BILLING"
-# Set billing if not linked
-billing=$(gcloud beta billing accounts list --format='get(ACCOUNT_ID)')
-if [ -z "$billing" ]; then
-  $print "Linking billing account..."
-  gcloud beta billing projects link "$PROJECT_ID" --billing-account="$BILLING"
-fi
-
-set_config "$CONFIG" "$PROJECT_ID" "$ZONE" "$REGION" "$ACCOUNT"
-
-
-#############################################
-# Enable APIs for the project
-#############################################
 enable_project_apis() {
   APIS="compute.googleapis.com \
     pubsub.googleapis.com \
@@ -94,35 +79,47 @@ enable_project_apis() {
   $print "Enabling APIs on the project..."
   gcloud services enable orgpolicy.googleapis.com #To avoid Error for concurrent policy changes.
   gcloud services enable $APIS --async
-  echo 'Waiting for org policies to take effect'
-  #TODO use `gcloud beta services operations wait operations` instead
-  sleep 8
+
+  # TODO use `gcloud beta services operations wait operations` instead
+  echo 'Waiting for Enable APIs operation to take effect...'
+  sleep 10
 }
 
+update_org_policy(){
+  $print  "Updating Org Policies..."
+  gcloud org-policies reset constraints/cloudfunctions.allowedIngressSettings --project="$PROJECT_ID"
+  gcloud org-policies reset constraints/compute.requireShieldedVm --project="$PROJECT_ID"
+  #Needed otherwise CloudFunction gets google.api_core.exceptions.PermissionDenied: 403 User not authorized to perform this action.
+  gcloud org-policies reset cloudfunctions.requireVPCConnector --project="$PROJECT_ID"
+  gcloud org-policies reset iam.disableServiceAccountCreation --project="$PROJECT_ID"
+  # This one is required for DataFlow: The project quota may have been exceeded or access control policies may be preventing the operation; review the Cloud Logging "GCE VM Instance" log for diagnostics.
+  gcloud org-policies reset --project="$PROJECT_ID"  compute.vmExternalIpAccess
+}
 
-##### Enable the services required
+setup_network(){
+  network=$(gcloud compute networks list --filter="name=( 'default' )" --format='get(NAME)' 2>/dev/null)
+  if [ -z "$network" ]; then
+      $print 'Setting up Network...'
+      gcloud compute networks create default --project="$PROJECT_ID" --subnet-mode=auto --mtu=1460 --bgp-routing-mode=regional
+      gcloud compute firewall-rules create default-allow-internal --project="$PROJECT_ID" \
+            --network=projects/"$PROJECT_ID"/global/networks/default \
+            --description=Allows\ connections\ from\ any\ source\ in\ the\ network\ IP\ range\ to\ any\ instance\ on\ the\ network\ using\ all\ protocols. \
+            --direction=INGRESS --priority=65534 --source-ranges=10.128.0.0/9 --action=ALLOW --rules=all
+  fi
+}
+##################################################################################
+# Create project if not existing
+create_project
+
+set_config
+
+# Enable the services required
 enable_project_apis
 
+# Modify policy
+update_org_policy
 
-#### Modify policy
-$print  "Updating Org Policies..."
-gcloud org-policies reset constraints/cloudfunctions.allowedIngressSettings --project="$PROJECT_ID"
-gcloud org-policies reset constraints/compute.requireShieldedVm --project="$PROJECT_ID"
-#Needed otherwise CloudFunction gets google.api_core.exceptions.PermissionDenied: 403 User not authorized to perform this action.
-gcloud org-policies reset cloudfunctions.requireVPCConnector --project="$PROJECT_ID"
-gcloud org-policies reset iam.disableServiceAccountCreation --project="$PROJECT_ID"
-# This one is required for DataFlow: The project quota may have been exceeded or access control policies may be preventing the operation; review the Cloud Logging "GCE VM Instance" log for diagnostics.
-gcloud org-policies reset --project="$PROJECT_ID"  compute.vmExternalIpAccess
-
-$print 'Setting up Network...'
-network=$(gcloud compute networks list --filter="name=( 'default' )" --format='get(NAME)' 2>/dev/null)
-if [ -z "$network" ]; then
-    gcloud compute networks create default --project="$PROJECT_ID" --subnet-mode=auto --mtu=1460 --bgp-routing-mode=regional
-    gcloud compute firewall-rules create default-allow-internal --project="$PROJECT_ID" \
-          --network=projects/"$PROJECT_ID"/global/networks/default \
-          --description=Allows\ connections\ from\ any\ source\ in\ the\ network\ IP\ range\ to\ any\ instance\ on\ the\ network\ using\ all\ protocols. \
-          --direction=INGRESS --priority=65534 --source-ranges=10.128.0.0/9 --action=ALLOW --rules=all
-fi
+setup_network
 
 #gcloud org-policies list --project=$PROJECT_ID --show-unset --format='value(constraint)' | while read CONSTRAINT
 #do
@@ -130,10 +127,8 @@ fi
 #    #gcloud org-policies reset $CONSTRAINT  --project=$PROJECT_ID
 #done
 
-gcloud info
-gcloud config configurations list
 
-############  Init Project Dependent Variables ############
+############  Init Project Dependent Variables For Ease of Debugging############
 PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
 export PROJECT_ID
 
@@ -146,6 +141,8 @@ export PROJECT_NUM
 SERVICE_ACCOUNT=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
 export SERVICE_ACCOUNT
 
-############################################"
+gcloud config configurations list
+
+echo "#################################################"
 echo "              Project setup complete"
 echo "#################################################"

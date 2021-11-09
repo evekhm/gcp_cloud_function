@@ -18,7 +18,7 @@ Following GCP services are used:
 
 Checkput GitHub Code:
 ```console
-git clone git@github.com:evekhm/gcp.git
+git clone https://github.com/evekhm/gcp.git
 ```
 
 ```console
@@ -32,7 +32,7 @@ cd gcp/bin
 gcloud auth login
 ```
 
-#### 1. Setup Enviroment Variables for GCP deployment:
+#### 1. Set the Enviroment Variables for GCP Deployment:
 ```console
 export ACCOUNT='<account>'
 export BILLING='<billing_id>'
@@ -65,6 +65,15 @@ For PROJECT_ID specify a new unique Project ID to be created:
 
 ```console
 ./init <PROJECT_ID>
+```
+
+If all steps completed sucessfully, following message should appear at the end:
+```console
+NAME           IS_ACTIVE   ACCOUNT      PROJECT        COMPUTE_DEFAULT_ZONE  COMPUTE_DEFAULT_REGION
+<CONFIG-NAME>  True        <ACCOUNT>    <PROJECT_ID>   <ZONE>                <REGION>
+#################################################
+              Project setup complete
+#################################################
 ```
 
 ### Run Deployment

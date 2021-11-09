@@ -11,9 +11,14 @@ fi
 if [ -z $ZONE ]; then
   export ZONE='us-west1-a'
 fi
-export CONFIG='demo'
+export CONFIG='demo-datacloud'
 
 source "$DIR/SET_cgm"
+
+alias cl='clear'
+alias config='gcloud config configurations list'
+alias activate="gcloud config configurations activate"
+
 echo "Done ${BASH_SOURCE[0]}"
 
 

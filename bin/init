@@ -62,6 +62,7 @@ enable_project_apis() {
 
   $print "Enabling APIs on the project..."
   gcloud services enable orgpolicy.googleapis.com #To avoid Error for concurrent policy changes.
+  sleep 5 #Todo check for operation wait to complete
   gcloud services enable $APIS --async
   # TODO use `gcloud beta services operations wait operations` instead
   echo 'Waiting for Enable APIs operation to take effect...'

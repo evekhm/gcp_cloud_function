@@ -1,0 +1,8 @@
+curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
+sudo apt install nodejs
+
+
+gcloud run deploy eva-test-crd\
+    --image gcr.io/de-id-326816/pas_dev_crd\
+    --region us-west1 --platform managed\
+    --set-env-vars=VSAC_API_KEY=abbbecec-8b75-4e95-b9c0-62e758ec3a55 --port 8090

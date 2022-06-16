@@ -6,48 +6,32 @@ set -u # This prevents running the script if any of the variables have not been 
 set -e # Exit if error is detected during pipeline execution
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-print="$DIR/print"
+PROJECT_ID=${PROJECT_ID:-$(gcloud config get-value project 2> /dev/null)}
 
-if [ -z ${ZONE+x} ]  || [ -z  ${REGION+x} ]  || [ -z ${ACCOUNT+x} ] || [ -z ${CONFIG+x} ]; then
-  $print "Missing (any of) the required ENV paramters - ZONE REGION BILLING ACCOUNT CONFIG" 'ERROR.'
+print="$DIR/print"
+$print "Running ${BASH_SOURCE[0]} with PROJECT_ID=$PROJECT_ID, REGION=$REGION, ZONE=$ZONE" INFO
+
+if [ -z $PROJECT_ID ]; then
+    $print "Error: PROJECT_ID needs to be set."
+    exit 1
+fi
+
+if [ -z ${ZONE+x} ]  || [ -z  ${REGION+x} ]; then
+  $print "Missing (any of) the required ENV paramters - ZONE / REGION " 'ERROR.'
   exit 1
 fi
 
-if [ "$#" -ne 1 ]; then
-  PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
-  if [ -z $PROJECT_ID ]; then
-    $print "Usage: ${BASH_SOURCE[0]} PROJECT_ID" 'WARNING'
-    echo   "    Where PROJECT_ID is either existing one or a unique new one"
-    echo   "    Optional: set Project into active config, then input parameter could be omitted"
-    exit 1
-  else
-    $print "Using Project=[$PROJECT_ID] from the active config" INFO
-  fi
-else
-  PROJECT_ID=$1
-fi
-
-echo "$0" PROJECT_ID="$PROJECT_ID"
 
 ##################################################################################
 #                              HELPER FUNCTIONS
 ##################################################################################
 set_config() {
-    found=$(gcloud config configurations list  --format="csv[no-heading](NAME)" | grep "$CONFIG")
-    if [ -z "$found"  ];
-    then
-      $print "Creating [$CONFIG] environment"
-      gcloud config configurations create "$CONFIG"
-    else
-      gcloud config configurations activate "$CONFIG"
-    fi
-    gcloud config set account "$ACCOUNT"
-    gcloud config set project "$PROJECT_ID"
-    gcloud services enable compute.googleapis.com
-    gcloud config set compute/zone "$ZONE"
-    gcloud config set compute/region "$REGION"
 
-    $print "Updated config=[$CONFIG]" INFO
+  gcloud config set project "$PROJECT_ID"
+  echo "Enabling compute.googleapis.com API ..."
+  gcloud services enable compute.googleapis.com
+  gcloud config set compute/zone "$ZONE"
+  gcloud config set compute/region "$REGION"
 }
 
 create_project() {
@@ -78,8 +62,7 @@ enable_project_apis() {
 
   $print "Enabling APIs on the project..."
   gcloud services enable orgpolicy.googleapis.com #To avoid Error for concurrent policy changes.
-  gcloud services enable $APIS #--async
-
+  gcloud services enable $APIS --async
   # TODO use `gcloud beta services operations wait operations` instead
   echo 'Waiting for Enable APIs operation to take effect...'
   sleep 10
@@ -97,19 +80,19 @@ update_org_policy(){
 }
 
 setup_network(){
-  network=$(gcloud compute networks list --filter="name=( 'default' )" --format='get(NAME)' 2>/dev/null)
+  network=$(gcloud compute networks list --filter="name=(\"$NETWORK\" )" --format='get(NAME)' 2>/dev/null)
   if [ -z "$network" ]; then
       $print 'Setting up Network...'
       gcloud compute networks create default --project="$PROJECT_ID" --subnet-mode=auto --mtu=1460 --bgp-routing-mode=regional
       gcloud compute firewall-rules create default-allow-internal --project="$PROJECT_ID" \
-            --network=projects/"$PROJECT_ID"/global/networks/default \
+            --network=projects/"$PROJECT_ID"/global/networks/$NETWORK \
             --description=Allows\ connections\ from\ any\ source\ in\ the\ network\ IP\ range\ to\ any\ instance\ on\ the\ network\ using\ all\ protocols. \
             --direction=INGRESS --priority=65534 --source-ranges=10.128.0.0/9 --action=ALLOW --rules=all
   fi
 }
 ##################################################################################
-# Create project if not existing
-create_project
+## Create project if not existing
+#create_project
 
 set_config
 
@@ -121,11 +104,6 @@ update_org_policy
 
 setup_network
 
-#gcloud org-policies list --project=$PROJECT_ID --show-unset --format='value(constraint)' | while read CONSTRAINT
-#do
-#    echo $CONSTRAINT
-#    #gcloud org-policies reset $CONSTRAINT  --project=$PROJECT_ID
-#done
 
 
 ############  Init Project Dependent Variables For Ease of Debugging############
@@ -141,7 +119,7 @@ export PROJECT_NUM
 SERVICE_ACCOUNT=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
 export SERVICE_ACCOUNT
 
-gcloud config configurations list
+#gcloud config configurations list
 
 echo "#################################################"
 echo "              Project setup complete"

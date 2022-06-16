@@ -1,7 +1,13 @@
 #! /bin/bash
+set -u # This prevents running the script if any of the variables have not been set
+set -e # Exit if error is detected during pipeline execution
 
 sudo apt-get update
 sudo apt-get install git -y
-sudo apt-get install python3-setuptools python3-dev build-essential -Y
+sudo apt-get install python3-setuptools python3-dev build-essential -y
 curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-sudo python3 get-pip.py -Y
+sudo python3 get-pip.py -y
+
+python3 -m venv  ~/venvs/developingapps
+source ~/venvs/developingapps/bin/activate
+python --version

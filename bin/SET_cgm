@@ -5,12 +5,17 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ##################################################################################
 export APPLICATION='dexcom'          # Application Label
 
+#Region, Zone
+export ZONE=${ZONE:-'us-west1-a'}
+export REGION=${REGION:-'us-west1'}
+export NETWORK=${NETWORK:-'default'}
+
 # BigQuery
 export BIGQUERY_DATASET='datacloud'  # DataSet Name
 export BIGQUERY_TABLE=$APPLICATION   # Table name for Application Data
 
 # Cloud Function
-export SOURCE_DIR="${DIR}/../py/gMonitor"  # Cloud Function Directory - relative (main.py)
+export SOURCE_DIR="${DIR}/../py/dexcom"  # Cloud Function Directory - relative (main.py)
 export SOURCE_ENTRY_POINT='dexcom_monitor' # Entry point for Cloud Function
 export RUNTIME='python37' # The only properly Supported for Runtime Environment
 
@@ -25,6 +30,6 @@ export SUBSCRIPTION_ID=$APPLICATION'-sub'  # Pub/Sub Subscription for Applicatio
 export PUBSUB_COMMAND_TOPIC=$APPLICATION'-call' # Topic to Trigger Cloud Function
 export SCHEDULER_JOB=$APPLICATION'-job'         # Scheduler Job Name To Trigger Topic
 export DATAFLOW_JOB=$APPLICATION'_dataflow_job' # Dataflow Job name to Pipeline from Pub/Sub to BigQuery
-
-
-echo "Done ${BASH_SOURCE[0]}"
+#
+#
+#echo "Done ${BASH_SOURCE[0]}"

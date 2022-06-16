@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
+
+
+
+## For Argolis
+gcloud services enable orgpolicy.googleapis.com
+touch out
+
+gcloud org-policies list --project=$PROJECT_ID --show-unset --format='value(constraint)' | while read CONSTRAINT
+do
+    echo " echo $CONSTRAINT "
+    echo gcloud org-policies reset $CONSTRAINT  --project=$PROJECT_ID >> out
+    #gcloud org-policies reset $CONSTRAINT  --project=$PROJECT_ID
+done
+
+bash out

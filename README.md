@@ -11,95 +11,53 @@ Following GCP services are used:
 - Cloud Functions
 - DialogFlow
 - IAM
-- ...
 
+The demo will deploy dexcom cloud function to connect with Dexcom API and stream data into the BigQuery using DataFlow. 
 
-## STEPS
+# STEPS
 
-Checkput GitHub Code:
-```console
-git clone https://github.com/evekhm/gcp.git
-```
+## Prepare Project 
 
-```console
-cd gcp/bin
-```
+### 1. Create a project with a Billing account
 
-### Prepare Project
+Created GCP project and assign Billing Account.
+Note down the Project_ID.
 
+### 2. Authorize Access 
+When running from GCP console, this step could be skipped.
 
 ```console
 gcloud auth login
+
+### 3. Set env variables
+```
+Set Project ID
+```shell
+export PROJECT_ID=<your_project_id>
 ```
 
-#### 1. Set the Enviroment Variables for GCP Deployment:
-```console
-export ACCOUNT='<account>'
-export BILLING='<billing_id>'
-export REGION=<REGION>
-export ZONE=<ZONE>
-export CONFIG=<CONFIGNAME>
-```
-CONFIG - is the name of the GCP configuration to be used in this demo.
-
-<p>Example:
-
-```console
-export ACCOUNT='admin@myaccount.altostrat.com'
-export BILLING='016EA1-F95FE4-01826A'
-export REGION='us-west1'
-export ZONE='us-west1-a'
-export CONFIG='cloud-demo'
+Optionally, set ZONE/REGION (otherwise default values will be used):
+```shell
+export ZONE=<your_zone>
+export REGION=<your_region>
 ```
 
-Activate Application Specific Settings:
-```console
-source SET_cgm
+### 4. Deploy Dexcom CloudFunction Demo Flow
+
+```sh
+git clone https://github.com/evekhm/gcp_cloud_function.git demo
+demo/bin/doit
 ```
 
-#### 2. Create/Update Project 
+### 5. Query BigTable
+Check its working. 
 
-Following command activates dedicated CONFIG  and sets up project with PROJECT_ID for the demo.<br>
-For PROJECT_ID specify a new unique Project ID to be created:
+If all steps completed sucessfully, after  few minutes data will begin appearing in bigquery and could be queried. 
 
-```console
-./init <PROJECT_ID>
+```sh
+bin/query
 ```
 
-If all steps completed sucessfully, following message should appear at the end:
-```console
-NAME           IS_ACTIVE   ACCOUNT      PROJECT        COMPUTE_DEFAULT_ZONE  COMPUTE_DEFAULT_REGION
-<CONFIG-NAME>  True        <ACCOUNT>    <PROJECT_ID>   <ZONE>                <REGION>
-#################################################
-              Project setup complete
-#################################################
-```
-
-### Run Deployment
-```console
-./run
-```
-
-If successfull, the output should end as following: 
-```
-==> Creating DataFlow Pipeline to Ingest Data from [dexcom-sub] into BQ [datacloud].[dexcom] (Last Step)..
-createTime: '2021-11-09T00:53:38.741531Z'
-currentStateTime: '1970-01-01T00:00:00Z'
-id: 2021-11-08_16_53_37-7304697809915838769
-location: <REGION>>
-name: dexcom_dataflow_job
-projectId: <PROJECT_ID>
-startTime: '2021-11-09T00:53:38.741531Z'
-type: JOB_TYPE_STREAMING
-
-```
-
-
-### Query BigTable
-After few minutes, data been collected and streamlined into BigQuery:
-```console
-./query
-```
 Sample Output:
 ```
 +----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------+-----------------------+-------+
@@ -115,13 +73,8 @@ Sample Output:
 ```
 
 ### Cleaning Up
-Following command will unset previously set Enviroment Variables (including BILLING, REGION, ZONE):
-
-```console
-source ./UNSET
-```
 
 Following command will delete previously created resources. Project itself will not be deleted.
-```console
-./clean
+```shell
+./bin/clean
 ```

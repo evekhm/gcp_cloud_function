@@ -1,0 +1,13 @@
+#! /bin/bash
+set -e # Exit if error is detected during pipeline execution
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+source "$DIR/SET_cgm"
+
+# Sets the project into config and updates settings
+"$DIR"/init
+
+# Runs flow on the active config
+"$DIR"/run
+
+# clean

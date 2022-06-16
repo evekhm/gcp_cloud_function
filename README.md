@@ -24,8 +24,6 @@ Created GCP project and assign Billing Account.
 Note down the Project_ID.
 
 ### 2. Authorize Access 
-When running from GCP console, this step could be skipped.
-
 ```sh
 gcloud auth login
 ```

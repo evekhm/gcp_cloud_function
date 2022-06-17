@@ -28,6 +28,7 @@ When running from GCP console, this step could be skipped.
 
 ```console
 gcloud auth login
+```
 
 ### 3. Set env variables
 ```

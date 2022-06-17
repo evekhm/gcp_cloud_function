@@ -36,11 +36,6 @@ Set Project ID
 export PROJECT_ID=<your_project_id>
 ```
 
-Optionally, set ZONE/REGION (otherwise default values will be used):
-```shell
-export ZONE=<your_zone>
-export REGION=<your_region>
-```
 
 ### 4. Deploy Dexcom CloudFunction Demo Flow
 

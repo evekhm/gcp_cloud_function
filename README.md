@@ -46,9 +46,7 @@ demo/bin/doit
 ```
 
 ### 5. Query BigTable
-Check its working. 
-
-If all steps completed sucessfully, after  few minutes data will begin appearing in bigquery and could be queried. 
+Check its working. If all steps completed sucessfully, after  few minutes data will begin appearing in bigquery and could be queried. 
 
 ```sh
 bin/query

@@ -23,7 +23,7 @@ The demo will deploy dexcom cloud function to connect with Dexcom API and stream
 Created GCP project and assign Billing Account.
 Note down the Project_ID.
 
-### 2. Authorize Access 
+### 2. Authorize Access
 ```sh
 gcloud auth login
 ```
@@ -45,9 +45,7 @@ demo/bin/doit
 ```
 
 ### 5. Query BigTable
-Check its working. 
-
-If all steps completed sucessfully, after  few minutes data will begin appearing in bigquery and could be queried. 
+Check its working. If all steps completed sucessfully, after  few minutes data will begin appearing in bigquery and could be queried. 
 
 ```sh
 bin/query

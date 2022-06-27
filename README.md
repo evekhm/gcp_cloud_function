@@ -24,8 +24,10 @@ Created GCP project and assign Billing Account.
 Note down the Project_ID.
 
 ### 2. Authorize Access
-```sh
-gcloud auth login
+Authorize gcloud to access the Cloud Platform with Google user credentials.
+
+```shgcloud auth login
+
 ```
 
 ### 3. Set env variables

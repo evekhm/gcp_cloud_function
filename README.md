@@ -67,6 +67,25 @@ Sample Output:
 
 ```
 
+Alternatively, following Query could be run from the Cloud Console:
+
+- Navigate to the Cloud Console and search for Big Query.
+- Find dataset called `datacloud` and table called `dexcom`. This is data retrieved from the dexcom device using API with glucose 
+monitoring activiting.
+![Alt text](img/dexcom.png)
+- Run following Query 
+  - Replace <PROJECT_ID> with your Project ID
+
+```shell
+SELECT message, userId, JSON_EXTRACT(message,  '$.systemTime' ) AS date,
+  JSON_EXTRACT(message,  '$.value' ) AS value, 
+  JSON_EXTRACT(message,  '$.trend' ) AS trend,
+  JSON_EXTRACT(message,  '$.trendRate' ) AS trend_rate    
+  FROM `device-connect-1.datacloud.dexcom` LIMIT 1000
+```
+
+![Alt text](img/query2.png)
+![Alt text](img/query.png)
 ### Cleaning Up
 
 Following command will delete previously created resources. Project itself will not be deleted.

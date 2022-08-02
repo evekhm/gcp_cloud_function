@@ -27,10 +27,21 @@ def get_latest_data(access_token):
   attempt = 0
   while len(result_data) == 0 and attempt < max_attempts:
     attempt += 1
-    dt = get_random_date(LATEST_DATE)
-    start_date = dt.strftime('%Y-%m-%dT%H:%M:%S')
-    end_date = (dt + timedelta(minutes=15)).strftime('%Y-%m-%dT%H:%M:%S')
-    result_data = get_data(access_token, start_date, end_date)
+    # dt = get_random_date(LATEST_DATE)
+    # start_date = dt.strftime('%Y-%m-%dT%H:%M:%S')
+    # end_date = (dt + timedelta(minutes=15)).strftime('%Y-%m-%dT%H:%M:%S')
+    # result_data = get_data(access_token, start_date, end_date)
+
+    #map to existing data in the period of 2021-09-01 to 2021-10-02
+    now=datetime.now()
+    hour = '{:02d}'.format(now.hour)
+    minute = '{:02d}'.format(now.minute)
+    second = '{:02d}'.format(now.second)
+    day = '{:02d}'.format(now.day)
+    date_time_str=f"2021-09-{day}T{hour}:{minute}:{second}"
+    start_date = datetime.strptime(date_time_str, '%Y-%m-%dT%H:%M:%S')
+    end_date = (start_date + timedelta(minutes=15)).strftime('%Y-%m-%dT%H:%M:%S')
+    result_data = get_data(access_token, start_date.strftime('%Y-%m-%dT%H:%M:%S'), end_date)
 
   if len(result_data) == 0:
     print("Error, could not retrieve Sandbox data")

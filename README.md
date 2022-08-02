@@ -14,6 +14,13 @@ Following GCP services are used:
 
 The demo will deploy dexcom cloud function to connect with Dexcom API and stream data into the BigQuery using DataFlow. 
 
+# Overview
+
+- This demo uses [Dexcom API](https://developer.dexcom.com/sandbox-data) to pull data from the sandbox every 15 minutes using Cloud Scheduler and CLoud Function.
+- Cloud Function uses [egvs endpoint](https://developer.dexcom.com/get-egvs) and ingests data via Pub/Sub into the BigQuery `datacloud` dataset, 
+`dexcom` table. 
+- Retrieved data contains user's estimated glucose value (EGV), including trend and status information.
+
 # STEPS
 
 ## Prepare Project 
@@ -26,8 +33,8 @@ Note down the Project_ID.
 ### 2. Authorize Access
 Authorize gcloud to access the Cloud Platform with Google user credentials.
 
-```shgcloud auth login
-
+```sh
+gcloud auth login
 ```
 
 ### 3. Set env variables
@@ -54,18 +61,7 @@ bin/query
 ```
 
 Sample Output:
-```
-+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------+-----------------------+-------+
-|                                                                                              message                                                                                               |  userId  |         date          | value |
-+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------+-----------------------+-------+
-| {"systemTime": "2021-11-08T21:19:00", "displayTime": "2021-11-08T21:19:00", "value": 124, "realtimeValue": 124, "smoothedValue": 124, "status": null, "trend": "flat", "trendRate": -0.6}          | UserDemo | "2021-11-08T21:19:00" | 124   |
-| {"systemTime": "2021-11-08T21:20:00", "displayTime": "2021-11-08T21:20:00", "value": 83, "realtimeValue": 91, "smoothedValue": 83, "status": null, "trend": "flat", "trendRate": -0.2}             | UserDemo | "2021-11-08T21:20:00" | 83    |
-| {"systemTime": "2021-11-08T21:21:00", "displayTime": "2021-11-08T21:21:00", "value": 144, "realtimeValue": 144, "smoothedValue": 144, "status": null, "trend": "flat", "trendRate": -0.1}          | UserDemo | "2021-11-08T21:21:00" | 144   |
-| {"systemTime": "2021-11-08T21:22:00", "displayTime": "2021-11-08T21:22:00", "value": 126, "realtimeValue": 125, "smoothedValue": 126, "status": null, "trend": "flat", "trendRate": 0.5}           | UserDemo | "2021-11-08T21:22:00" | 126   |
-| {"systemTime": "2021-11-08T21:24:00", "displayTime": "2021-11-08T21:24:00", "value": 136, "realtimeValue": 137, "smoothedValue": 136, "status": null, "trend": "flat", "trendRate": 0.3}           | UserDemo | "2021-11-08T21:24:00" | 136   |
-| {"systemTime": "2021-11-08T21:25:00", "displayTime": "2021-11-08T21:25:00", "value": 117, "realtimeValue": 117, "smoothedValue": 117, "status": null, "trend": "flat", "trendRate": -0.1}          | UserDemo | "2021-11-08T21:25:00" | 117   |
-
-```
+![](img/data.png)
 
 Alternatively, following Query could be run from the Cloud Console:
 
@@ -81,11 +77,14 @@ SELECT message, userId, JSON_EXTRACT(message,  '$.systemTime' ) AS date,
   JSON_EXTRACT(message,  '$.value' ) AS value, 
   JSON_EXTRACT(message,  '$.trend' ) AS trend,
   JSON_EXTRACT(message,  '$.trendRate' ) AS trend_rate    
-  FROM `device-connect-1.datacloud.dexcom` LIMIT 1000
+  FROM `<PROJECT_ID>.datacloud.dexcom` 
+  WHERE userId='UserDemo'
+  ORDER BY date
+  LIMIT 1000
 ```
 
-![Alt text](img/query2.png)
 ![Alt text](img/query.png)
+
 ### Cleaning Up
 
 Following command will delete previously created resources. Project itself will not be deleted.

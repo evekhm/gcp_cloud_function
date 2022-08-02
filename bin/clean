@@ -7,6 +7,7 @@ set -e # Exit if error is detected during pipeline execution
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 print="$DIR/print"
 
+source "$DIR"/SET_cgm
 PROJECT_ID=$(gcloud config get-value project 2> /dev/null);
 
 if [ "$#" -lt 1 ]; then

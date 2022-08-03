@@ -4,13 +4,17 @@
 ##################################################################################
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-if [ -z $REGION ]; then
-  export REGION='us-west1'
-fi
+#if [ -z $REGION ]; then
+#  export REGION='us-west1'
+#fi
+#
+#if [ -z $ZONE ]; then
+#  export ZONE='us-west1-a'
+#fi
 
-if [ -z $ZONE ]; then
-  export ZONE='us-west1-a'
-fi
+export ZONE='us-west1-a'
+export REGION='us-west1'
+
 export CONFIG='demo-datacloud'
 
 source "$DIR/SET_cgm"

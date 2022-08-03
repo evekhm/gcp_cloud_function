@@ -20,7 +20,7 @@ do_query()
     ' ORDER BY date'
 }
 
-title="Waiting for Streamed data to be Ingested into Big Query"
+title="Waiting for first data to be ingested into the BigQuery (this might take up to three minutes)... "
 while true; do
   str=$(do_query)
   if [ -z "$str" ]; then

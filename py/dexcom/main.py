@@ -25,6 +25,8 @@ def get_latest_data(access_token):
   result_data = []
   max_attempts = 10
   attempt = 0
+  now=datetime.now()
+
   while len(result_data) == 0 and attempt < max_attempts:
     attempt += 1
     # dt = get_random_date(LATEST_DATE)
@@ -33,12 +35,11 @@ def get_latest_data(access_token):
     # result_data = get_data(access_token, start_date, end_date)
 
     #map to existing data in the period of 2021-09-01 to 2021-10-02
-    now=datetime.now()
     hour = '{:02d}'.format(now.hour)
     minute = '{:02d}'.format(now.minute)
     second = '{:02d}'.format(now.second)
-    day = '{:02d}'.format(now.day)
-    date_time_str=f"2021-09-{day}T{hour}:{minute}:{second}"
+    day = '{:02d}'.format(min(now.day, 30))
+    date_time_str=f"2021-08-{day}T{hour}:{minute}:{second}"
     start_date = datetime.strptime(date_time_str, '%Y-%m-%dT%H:%M:%S')
     end_date = (start_date + timedelta(minutes=15)).strftime('%Y-%m-%dT%H:%M:%S')
     result_data = get_data(access_token, start_date.strftime('%Y-%m-%dT%H:%M:%S'), end_date)
@@ -51,8 +52,8 @@ def get_latest_data(access_token):
   message = result_data[-1]
 
   #Fix the data
-  message['systemTime'] = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-  message['displayTime'] = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+  message['systemTime'] = now.strftime('%Y-%m-%dT%H:%M:%S')
+  message['displayTime'] = now.strftime('%Y-%m-%dT%H:%M:%S')
 
   return message
 

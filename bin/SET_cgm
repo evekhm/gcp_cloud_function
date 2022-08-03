@@ -6,8 +6,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export APPLICATION='dexcom'          # Application Label
 
 #Region, Zone
-export ZONE=${ZONE:-'us-west1-a'}
-export REGION=${REGION:-'us-west1'} #Must be a valid location for App Engine creation
+#export ZONE=${ZONE:-'us-west1-a'}
+#export REGION=${REGION:-'us-west1'} #Must be a valid location for App Engine creation
+export ZONE='us-west1-a'
+export REGION='us-west1'
 export NETWORK=${NETWORK:-'default'}
 
 # BigQuery

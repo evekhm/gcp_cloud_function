@@ -98,9 +98,9 @@ create_bq_dt(){
 deploy_cloud_scheduler(){
   #Creating App Engine Application (Required for the Scheduler)
   if gcloud app describe 2>&1 >/dev/null | grep 'does not contain an App Engine application' > /dev/null; then
-      echo "GAE Default App not found - initializing AppEngines on the project in region=$REGION"
-      LOCATION="us-central"
-      gcloud app create --region=$LOCATION
+      echo "GAE Default App not found - initializing AppEngines on the project..."
+      gcloud app create --region="$REGION"
+      LOCATION="$REGION"
   else
       LOCATION=$(gcloud compute regions list --format "value(name)" | grep "$(gcloud app describe --format "value(locationId)")")
   fi

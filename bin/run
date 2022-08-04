@@ -3,7 +3,6 @@
 ##########################################################################################
 # This script deploys Cloud Function to Retrieve REST API Data and put into the BigQuery.
 ##########################################################################################
-set -u # This prevents running the script if any of the variables have not been set
 set -e # Exit if error is detected during pipeline execution
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 print="$DIR/print"
@@ -39,11 +38,17 @@ create_schema(){
 
 create_pubsub_topic(){
   TOPIC=$1
+  SCHEMA=$2
+
   if gcloud pubsub topics list 2>/dev/null | grep "$TOPIC"; then
     $print "Topic [$TOPIC] already exists - skipping step" INFO
   else
     $print "Creating topic [$TOPIC]..." INFO
-    gcloud pubsub topics create "$TOPIC" --schema="$DEVICE_DATA_SCHEMA" --message-encoding="json"
+    if [ -z "$SCHEMA" ]; then
+      gcloud pubsub topics create "$TOPIC"
+    else
+      gcloud pubsub topics create "$TOPIC" --schema="$DEVICE_DATA_SCHEMA" --message-encoding="json"
+    fi
   fi
 
   $print "Adding required permissions for service accounts" INFO
@@ -259,7 +264,7 @@ $print "Creating Schema=[$DEVICE_DATA_SCHEMA] for data received from the connect
 create_schema "$DEVICE_DATA_SCHEMA"
 
 $print "Creating Topic=[$TOPIC_ID] based on schema=[$DEVICE_DATA_SCHEMA] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
-create_pubsub_topic "$TOPIC_ID"
+create_pubsub_topic "$TOPIC_ID" "$DEVICE_DATA_SCHEMA"
 create_pubsub_subscription "$SUBSCRIPTION_ID" "$TOPIC_ID"
 
 $print "Creating Topic=[$PUBSUB_COMMAND_TOPIC] to Trigger Cloud Function..."

@@ -54,7 +54,7 @@ demo/bin/doit
 ```
 
 ### 5. Query BigTable
-Check its working. If all steps completed sucessfully, after  few minutes data will begin appearing in bigquery and could be queried. 
+Check its working. If all steps completed sucessfully, data will begin appearing in BigQuery and could be queried: 
 
 ```sh
 bin/query
@@ -73,12 +73,11 @@ monitoring activiting.
   - Replace <PROJECT_ID> with your Project ID
 
 ```shell
-SELECT JSON_EXTRACT(message,  '$.systemTime' ) AS date,
+SELECT SELECT userId, JSON_EXTRACT(message,  '$.systemTime' ) AS date,
   JSON_EXTRACT(message,  '$.value' ) AS value,
   JSON_EXTRACT(message,  '$.trend' ) AS trend,
   JSON_EXTRACT(message,  '$.trendRate' ) AS trend_rate  
 FROM `<PROJECT_ID>.datacloud.dexcom`
-WHERE userId='UserDemo'
 ORDER BY date
 ```
 

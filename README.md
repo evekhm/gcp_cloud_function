@@ -73,14 +73,13 @@ monitoring activiting.
   - Replace <PROJECT_ID> with your Project ID
 
 ```shell
-SELECT message, userId, JSON_EXTRACT(message,  '$.systemTime' ) AS date,
-  JSON_EXTRACT(message,  '$.value' ) AS value, 
+SELECT JSON_EXTRACT(message,  '$.systemTime' ) AS date,
+  JSON_EXTRACT(message,  '$.value' ) AS value,
   JSON_EXTRACT(message,  '$.trend' ) AS trend,
-  JSON_EXTRACT(message,  '$.trendRate' ) AS trend_rate    
-  FROM `<PROJECT_ID>.datacloud.dexcom` 
-  WHERE userId='UserDemo'
-  ORDER BY date
-  LIMIT 1000
+  JSON_EXTRACT(message,  '$.trendRate' ) AS trend_rate  
+FROM `<PROJECT_ID>.datacloud.dexcom`
+WHERE userId='UserDemo'
+ORDER BY date
 ```
 
 ![Alt text](img/query.png)

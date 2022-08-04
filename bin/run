@@ -24,9 +24,17 @@ if [ -z "$PROJECT_ID" ]; then
 fi
 ######################Variables based on APPLICATION Settings #############################
 REGION=$(gcloud config get-value compute/region 2> /dev/null);
-BUCKET="gs://${PROJECT_ID}-${APPLICATION}"
 SERVICE_ACCOUNT=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
 ###############################################################################
+
+create_schema(){
+  SCHEMA=$1
+  if gcloud pubsub schemas describe "$SCHEMA" 2>/dev/null; then
+    $print "Schema [$SCHEMA] already exists"
+  else
+    gcloud pubsub schemas "$SCHEMA" create key-schema --definition-file="$DIR/schema" --type=AVRO
+  fi
+}
 
 create_pubsub_topic(){
   TOPIC=$1
@@ -34,7 +42,7 @@ create_pubsub_topic(){
     $print "Topic [$TOPIC] already exists - skipping step" INFO
   else
     $print "Creating topic [$TOPIC]..." INFO
-    gcloud pubsub topics create "$TOPIC"
+    gcloud pubsub topics create "$TOPIC" --schema="$DEVICE_DATA_SCHEMA"
   fi
 
   $print "Adding required permissions for service accounts" INFO
@@ -55,7 +63,7 @@ create_pubsub_subscription(){
   fi
 
   $print "Creating subscription [$SUBSCRIPTION]..." INFO
-  gcloud pubsub subscriptions create "$SUBSCRIPTION" --topic "$TOPIC"
+  gcloud pubsub subscriptions create "$SUBSCRIPTION" --topic "$TOPIC" --bigquery-table="${BIGQUERY_DATASET}"."${BIGQUERY_TABLE}" : --use-topic-schema --write-metadata
 }
 
 create_gcs_bucket(){
@@ -180,6 +188,17 @@ create_service_account() {
     --member="serviceAccount:$SERVICE_ACCOUNT" \
     --role="roles/dataflow.worker"
 
+  # For Pub/Sub streaming into BigQuery
+  # See https://cloud.google.com/pubsub/docs/create-subscription#assign_service_account
+  PUB_SUB_SERVICE_AGENT=service-${PROJECT_NUM}@gcp-sa-pubsub.iam.gserviceaccount.com
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$PUB_SUB_SERVICE_AGENT" \
+    --role="roles/bigquery.dataEditor"
+
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$PUB_SUB_SERVICE_AGENT" \
+    --role="roles/bigquery.metadataViewer"
+
 }
 
 create_role() {
@@ -232,7 +251,10 @@ create_role
 $print "Creating Service Account=[$SERVICE_ACCOUNT_NAME] binded to [$APPLICATION_ROLE] role"
 create_service_account
 
-$print "Creating Topic=[$TOPIC_ID] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
+$print "CreatingSchema=[$DEVICE_DATA_SCHEMA] for data received from the connected devices"
+create_schema "$DEVICE_DATA_SCHEMA"
+
+$print "Creating Topic=[$TOPIC_ID] based on schema=[$DEVICE_DATA_SCHEMA] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
 create_pubsub_topic "$TOPIC_ID"
 create_pubsub_subscription "$SUBSCRIPTION_ID" "$TOPIC_ID"
 

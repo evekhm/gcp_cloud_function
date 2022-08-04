@@ -1,0 +1,18 @@
+{
+  "type" : "record",
+  "name" : "Avro",
+  "fields" : [
+    {
+      "name" : "message",
+      "type" : "string"
+    },
+    {
+      "name" : "userId",
+      "type" : "string"
+    },
+    {
+      "name" : "type",
+      "type" : "string"
+    }
+  ]
+}

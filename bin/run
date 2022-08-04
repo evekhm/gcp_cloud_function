@@ -33,7 +33,7 @@ create_schema(){
   if gcloud pubsub schemas describe "$SCHEMA" 2>/dev/null; then
     $print "Schema [$SCHEMA] already exists"
   else
-    gcloud pubsub schemas "$SCHEMA" create key-schema --definition-file="$DIR/schema" --type=AVRO
+    gcloud pubsub schemas create "$SCHEMA" key-schema --definition-file="$DIR/schema" --type=AVRO
   fi
 }
 
@@ -252,7 +252,7 @@ create_role
 $print "Creating Service Account=[$SERVICE_ACCOUNT_NAME] binded to [$APPLICATION_ROLE] role"
 create_service_account
 
-$print "CreatingSchema=[$DEVICE_DATA_SCHEMA] for data received from the connected devices"
+$print "Creating Schema=[$DEVICE_DATA_SCHEMA] for data received from the connected devices"
 create_schema "$DEVICE_DATA_SCHEMA"
 
 $print "Creating Topic=[$TOPIC_ID] based on schema=[$DEVICE_DATA_SCHEMA] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."

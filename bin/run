@@ -268,14 +268,14 @@ deploy_cloud_function
 $print "Creating Cloud Scheduler to trigger [$PUBSUB_COMMAND_TOPIC] topic every $INTERVAL (min)..."
 deploy_cloud_scheduler
 
-$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
-create_gcs_bucket
+#$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
+#create_gcs_bucket
 
 $print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
 create_bq_dt
-
-$print "Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
-deploy_dataflow
+#
+#$print "Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
+#deploy_dataflow
 
 
 

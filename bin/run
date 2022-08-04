@@ -33,7 +33,7 @@ create_schema(){
   if gcloud pubsub schemas describe "$SCHEMA" 2>/dev/null; then
     $print "Schema [$SCHEMA] already exists"
   else
-    gcloud pubsub schemas create "$SCHEMA" key-schema --definition-file="$DIR/schema" --type=AVRO
+    gcloud pubsub schemas create "$SCHEMA" --definition-file="$DIR/schema" --type=AVRO
   fi
 }
 
@@ -43,7 +43,7 @@ create_pubsub_topic(){
     $print "Topic [$TOPIC] already exists - skipping step" INFO
   else
     $print "Creating topic [$TOPIC]..." INFO
-    gcloud pubsub topics create "$TOPIC" --schema="$DEVICE_DATA_SCHEMA"
+    gcloud pubsub topics create "$TOPIC" --schema="$DEVICE_DATA_SCHEMA" --message-encoding="json"
   fi
 
   $print "Adding required permissions for service accounts" INFO
@@ -64,7 +64,7 @@ create_pubsub_subscription(){
   fi
 
   $print "Creating subscription [$SUBSCRIPTION]..." INFO
-  gcloud pubsub subscriptions create "$SUBSCRIPTION" --topic "$TOPIC" --bigquery-table="${BIGQUERY_DATASET}"."${BIGQUERY_TABLE}" : --use-topic-schema --write-metadata
+  gcloud pubsub subscriptions create "$SUBSCRIPTION" --topic "$TOPIC" --bigquery-table="${PROJECT_ID}:${BIGQUERY_DATASET}.${BIGQUERY_TABLE}" --use-topic-schema
 }
 
 create_gcs_bucket(){
@@ -252,6 +252,9 @@ create_role
 $print "Creating Service Account=[$SERVICE_ACCOUNT_NAME] binded to [$APPLICATION_ROLE] role"
 create_service_account
 
+$print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
+create_bq_dt
+
 $print "Creating Schema=[$DEVICE_DATA_SCHEMA] for data received from the connected devices"
 create_schema "$DEVICE_DATA_SCHEMA"
 
@@ -272,8 +275,7 @@ deploy_cloud_scheduler
 #$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
 #create_gcs_bucket
 
-$print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
-create_bq_dt
+
 #
 #$print "Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
 #deploy_dataflow

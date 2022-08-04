@@ -29,7 +29,7 @@ clean(){
       -schema=*)
         SCHEMA="${i#*=}"
         if gcloud pubsub schemas describe "$SCHEMA" 2>/dev/null; then
-           gcloud pubsub schemas delete "$SCHEMA"
+           gcloud pubsub schemas delete "$SCHEMA" --quiet
         fi
         shift # past argument=value
         ;;

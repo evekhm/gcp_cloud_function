@@ -93,16 +93,13 @@ clean(){
         ;;
       -dataflow=*)
         JOB="${i#*=}"
-        if gcloud dataflow jobs list \
-                     --filter "NAME:$JOB AND STATE=Running" \
-                     --format 'value(JOB_ID)' \
-                     --region "$REGION" 2>/dev/null; then
-          echo "Deleting $JOB"
-          gcloud dataflow jobs list \
-            --filter "NAME:$JOB AND STATE=Running" \
-            --format 'value(JOB_ID)' \
-            --region "$REGION" 2>/dev/null \
-            | xargs gcloud dataflow jobs cancel --region "$REGION"
+        JOB_ID=$(gcloud dataflow jobs list \
+                                      --filter "NAME:$JOB AND STATE=Running" \
+                                      --format 'value(JOB_ID)' \
+                                      --region "$REGION" 2>/dev/null)
+        if [ -d "$JOB_ID" ]; then
+          echo "Deleting $JOB" with JOB_ID "$JOB_ID"
+          gcloud dataflow jobs cancel --region "$REGION"
         fi
         shift # past argument=value
         ;;

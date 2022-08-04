@@ -25,6 +25,7 @@ fi
 ######################Variables based on APPLICATION Settings #############################
 REGION=$(gcloud config get-value compute/region 2> /dev/null);
 SERVICE_ACCOUNT=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
+PROJECT_NUM=$(gcloud projects describe "$PROJECT_ID" --format='get(projectNumber)')
 ###############################################################################
 
 create_schema(){

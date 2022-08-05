@@ -3,7 +3,6 @@
 ##########################################################################################
 # This script deploys Cloud Function to Retrieve REST API Data and put into the BigQuery.
 ##########################################################################################
-set -u # This prevents running the script if any of the variables have not been set
 set -e # Exit if error is detected during pipeline execution
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 print="$DIR/print"
@@ -24,17 +23,32 @@ if [ -z "$PROJECT_ID" ]; then
 fi
 ######################Variables based on APPLICATION Settings #############################
 REGION=$(gcloud config get-value compute/region 2> /dev/null);
-BUCKET="gs://${PROJECT_ID}-${APPLICATION}"
 SERVICE_ACCOUNT=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
+PROJECT_NUM=$(gcloud projects describe "$PROJECT_ID" --format='get(projectNumber)')
 ###############################################################################
+
+create_schema(){
+  SCHEMA=$1
+  if gcloud pubsub schemas describe "$SCHEMA" 2>/dev/null; then
+    $print "Schema [$SCHEMA] already exists"
+  else
+    gcloud pubsub schemas create "$SCHEMA" --definition-file="$DIR/schema" --type=AVRO
+  fi
+}
 
 create_pubsub_topic(){
   TOPIC=$1
+  SCHEMA=$2
+
   if gcloud pubsub topics list 2>/dev/null | grep "$TOPIC"; then
     $print "Topic [$TOPIC] already exists - skipping step" INFO
   else
     $print "Creating topic [$TOPIC]..." INFO
-    gcloud pubsub topics create "$TOPIC"
+    if [ -z "$SCHEMA" ]; then
+      gcloud pubsub topics create "$TOPIC"
+    else
+      gcloud pubsub topics create "$TOPIC" --schema="$DEVICE_DATA_SCHEMA" --message-encoding="json"
+    fi
   fi
 
   $print "Adding required permissions for service accounts" INFO
@@ -55,7 +69,7 @@ create_pubsub_subscription(){
   fi
 
   $print "Creating subscription [$SUBSCRIPTION]..." INFO
-  gcloud pubsub subscriptions create "$SUBSCRIPTION" --topic "$TOPIC"
+  gcloud pubsub subscriptions create "$SUBSCRIPTION" --topic "$TOPIC" --bigquery-table="${PROJECT_ID}:${BIGQUERY_DATASET}.${BIGQUERY_TABLE}" --use-topic-schema
 }
 
 create_gcs_bucket(){
@@ -180,6 +194,17 @@ create_service_account() {
     --member="serviceAccount:$SERVICE_ACCOUNT" \
     --role="roles/dataflow.worker"
 
+  # For Pub/Sub streaming into BigQuery
+  # See https://cloud.google.com/pubsub/docs/create-subscription#assign_service_account
+  PUB_SUB_SERVICE_AGENT=service-${PROJECT_NUM}@gcp-sa-pubsub.iam.gserviceaccount.com
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$PUB_SUB_SERVICE_AGENT" \
+    --role="roles/bigquery.dataEditor"
+
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$PUB_SUB_SERVICE_AGENT" \
+    --role="roles/bigquery.metadataViewer"
+
 }
 
 create_role() {
@@ -232,8 +257,14 @@ create_role
 $print "Creating Service Account=[$SERVICE_ACCOUNT_NAME] binded to [$APPLICATION_ROLE] role"
 create_service_account
 
-$print "Creating Topic=[$TOPIC_ID] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
-create_pubsub_topic "$TOPIC_ID"
+$print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
+create_bq_dt
+
+$print "Creating Schema=[$DEVICE_DATA_SCHEMA] for data received from the connected devices"
+create_schema "$DEVICE_DATA_SCHEMA"
+
+$print "Creating Topic=[$TOPIC_ID] based on schema=[$DEVICE_DATA_SCHEMA] and subscription=[$SUBSCRIPTION_ID] for Receiving Data from device ..."
+create_pubsub_topic "$TOPIC_ID" "$DEVICE_DATA_SCHEMA"
 create_pubsub_subscription "$SUBSCRIPTION_ID" "$TOPIC_ID"
 
 $print "Creating Topic=[$PUBSUB_COMMAND_TOPIC] to Trigger Cloud Function..."
@@ -246,14 +277,13 @@ deploy_cloud_function
 $print "Creating Cloud Scheduler to trigger [$PUBSUB_COMMAND_TOPIC] topic every $INTERVAL (min)..."
 deploy_cloud_scheduler
 
-$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
-create_gcs_bucket
+#$print "Creating Cloud Storage bucket=[$BUCKET] for DataFlow ..."
+#create_gcs_bucket
 
-$print "Creating BigQuery Dataset=${BIGQUERY_DATASET} and Table=${BIGQUERY_TABLE}for the received data..."
-create_bq_dt
 
-$print "Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
-deploy_dataflow
+#
+#$print "Creating DataFlow Pipeline to Ingest Data from [$SUBSCRIPTION_ID] into BQ [$BIGQUERY_DATASET].[$BIGQUERY_TABLE] (Last Step).."
+#deploy_dataflow
 
 
 

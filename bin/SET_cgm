@@ -3,6 +3,9 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ##################################################################################
 #          Application Specific SETTINGS (Poject-Independent)
 ##################################################################################
+#GLOBAL
+export DEVICE_DATA_SCHEMA='device-data-schema'
+
 export APPLICATION='dexcom'          # Application Label
 
 #Region, Zone
@@ -35,3 +38,5 @@ export DATAFLOW_JOB=$APPLICATION'_dataflow_job' # Dataflow Job name to Pipeline 
 #
 #
 #echo "Done ${BASH_SOURCE[0]}"
+
+export BUCKET="gs://${PROJECT_ID}-${APPLICATION}"

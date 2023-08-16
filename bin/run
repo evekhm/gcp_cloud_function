@@ -37,17 +37,17 @@ create_schema(){
 }
 
 create_pubsub_topic(){
-  TOPIC=$1
+  TOPIC_ID=$1
   SCHEMA=$2
 
-  if gcloud pubsub topics list 2>/dev/null | grep "$TOPIC"; then
-    $print "Topic [$TOPIC] already exists - skipping step" INFO
+  if gcloud pubsub topics list 2>/dev/null | grep "$TOPIC_ID"; then
+    $print "Topic [$TOPIC_ID] already exists - skipping step" INFO
   else
-    $print "Creating topic [$TOPIC]..." INFO
+    $print "Creating topic [$TOPIC_ID]..." INFO
     if [ -z "$SCHEMA" ]; then
-      gcloud pubsub topics create "$TOPIC"
+      gcloud pubsub topics create "$TOPIC_ID"
     else
-      gcloud pubsub topics create "$TOPIC" --schema="$DEVICE_DATA_SCHEMA" --message-encoding="json"
+      gcloud pubsub topics create "$TOPIC_ID" --schema="$DEVICE_DATA_SCHEMA" --message-encoding="json"
     fi
   fi
 
